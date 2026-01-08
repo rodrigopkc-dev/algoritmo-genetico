@@ -28,12 +28,14 @@ PLOT_X_OFFSET = 450
 
 # GA
 #N_CITIES = 15
-POPULATION_SIZE = 100
+#POPULATION_SIZE = 100
+POPULATION_SIZE = 1000
 #POPULATION_SIZE = 2
 #POPULATION_SIZE = 50
 
 N_GENERATIONS = None
-MUTATION_PROBABILITY = 0.5
+#MUTATION_PROBABILITY = 0.1
+MUTATION_PROBABILITY = 0.2
 
 # Define colors
 WHITE = (255, 255, 255)
@@ -55,9 +57,6 @@ GRAY = (200, 200, 200)
 #cities_locations = default_problems[15]
 #cities_locations = default_problems[15]
 
-cities_locations = default_problems[15]
-N_CITIES = len(cities_locations)
-
 
 # Using att48 benchmark
 WIDTH, HEIGHT = 1500, 800
@@ -67,13 +66,17 @@ max_y = max(point[1] for point in att_cities_locations)
 scale_x = (WIDTH - PLOT_X_OFFSET - NODE_RADIUS) / max_x
 scale_y = HEIGHT / max_y
 
-#cities_locations = [(int(point[0] * scale_x + PLOT_X_OFFSET),
-#                     int(point[1] * scale_y)) for point in att_cities_locations]
+cities_locations = [(int(point[0] * scale_x + PLOT_X_OFFSET),
+                     int(point[1] * scale_y)) for point in att_cities_locations]
 
 #target_solution = [cities_locations[i-1] for i in att_48_cities_order]
 #fitness_target_solution = calculate_fitness(target_solution)
 #print(f"Best Solution: {fitness_target_solution}")
 # ----- Using att48 benchmark
+
+
+#cities_locations = default_problems[15]
+N_CITIES = len(cities_locations)
 
 # 1. PASSO CRUCIAL: Criar a Matriz de Distâncias uma única vez
 dist_matrix = create_distance_matrix(cities_locations)
@@ -100,9 +103,67 @@ generation_counter = itertools.count(start=1)  # Start the counter at 1
 #best_fitness_values = []
 #best_solutions = []
 
+# --- CONFIGURAÇÃO DE PRAZOS E MEDICAMENTOS ---
+#delivery_data = {}
+#for i in range(N_CITIES):
+#    # Definimos que as cidades com índice par recebem medicamentos críticos
+#    is_critico = (i % 3 == 0) 
+#    # Críticos: Prazo curto (100-500). Regulares: Prazo longo (1000-3000)
+#    prazo = random.randint(100, 500) if is_critico else random.randint(1000, 3000)
+#    
+#    delivery_data[i] = {
+#        'prazo': prazo, 
+#        'critico': is_critico,
+#        'demanda': random.randint(1, 5) # Futuro: Capacidade de Carga
+#    }
+
+# --- CONFIGURAÇÃO DE PRAZOS E MEDICAMENTOS (DINÂMICO 30%) ---
+#delivery_data = {}
+# Definimos a semente para que as prioridades não mudem a cada frame, 
+# mas sejam diferentes a cada execução se desejar (ou fixa para testes)
+# random.seed(42)
+#for i in range(N_CITIES):
+#    # Define aleatoriamente se é crítico (30% de chance)
+#    is_critico = random.random() < 0.30
+#    
+#    # Críticos: Prazo curto (100-500). Regulares: Prazo longo (1000-3000)
+#    prazo = random.randint(100, 500) if is_critico else random.randint(1000, 3000)
+#    
+#    delivery_data[i] = {
+#        'prazo': prazo, 
+#        'critico': is_critico,
+#        'demanda': random.randint(1, 5) # Futuro: Capacidade de Carga
+#    }
+
+delivery_data = {}
+
+#random.seed(42)
+#random.seed(41)
+random.seed(38)
+for i in range(N_CITIES):
+    if i == 0:
+        # Configuração específica para o Depósito (Quadrado Azul)
+        is_critico = False
+        prazo = 99999  # Prazo muito alto pois é o ponto de partida/retorno
+        demanda = 0    # Depósito não consome carga
+    else:
+        # Define aleatoriamente se é crítico (30% de chance) para as demais cidades
+        #random.seed(42)
+        is_critico = random.random() < 0.30
+        # Críticos: Prazo curto (100-500). Regulares: Prazo longo (1000-3000)
+        #prazo = random.randint(100, 500) if is_critico else random.randint(1000, 3000)
+        #alterado
+        prazo = 400.0 if is_critico else 2500.0
+        demanda = random.randint(1, 5)
+
+    delivery_data[i] = {
+        'prazo': prazo, 
+        'critico': is_critico,
+        'demanda': demanda
+    }
+
 best_fitness_values = []
 best_solutions_history = []
-
 
 # Main game loop
 running = True
@@ -118,7 +179,9 @@ while running:
     screen.fill(WHITE)
 
     # 3. CÁLCULO DE FITNESS: Usando a Matriz para alta performance
-    population_fitness = [calculate_fitness(ind, dist_matrix) for ind in population]
+    #population_fitness = [calculate_fitness(ind, dist_matrix) for ind in population]
+    # 3. CÁLCULO DE FITNESS: Agora passando os dados de entrega
+    population_fitness = [calculate_fitness(ind, dist_matrix, delivery_data) for ind in population]
 
     # Ordenar população (Melhores primeiro)
     population, population_fitness = sort_population(population, population_fitness)
@@ -138,9 +201,11 @@ while running:
     #try:
         #from draw_functions import draw_paths, draw_plot, draw_cities
     draw_plot(screen, list(range(len(best_fitness_values))), 
-                  best_fitness_values, y_label="Distancia (px)")
+                  best_fitness_values, y_label="Fitness")
         
-    draw_cities(screen, cities_locations, RED, NODE_RADIUS)
+    #draw_cities(screen, cities_locations, RED, NODE_RADIUS)
+    draw_cities(screen, cities_locations, delivery_data, NODE_RADIUS)
+
     # Desenha a melhor rota em azul
     draw_paths(screen, best_path_coords, BLUE, width=3)
     # Desenha a segunda melhor em cinza (opcional)

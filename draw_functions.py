@@ -81,23 +81,73 @@ def draw_plot(screen: pygame.Surface, x: list, y: list, x_label: str = 'Generati
     plt.close(fig)
 
     
-def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], rgb_color: Tuple[int, int, int], node_radius: int) -> None:
+#def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], rgb_color: Tuple[int, int, int], node_radius: int) -> None:
+#    """
+#    Draws circles representing cities on the given Pygame screen.
+#
+#    Parameters:
+#    - screen (pygame.Surface): The Pygame surface on which to draw the cities.
+#    - cities_locations (List[Tuple[int, int]]): List of (x, y) coordinates representing the locations of cities.
+#    - rgb_color (Tuple[int, int, int]): Tuple of three integers (R, G, B) representing the color of the city circles.
+#    - node_radius (int): The radius of the city circles.
+#
+#    Returns:
+#    None
+#    """
+#    for city_location in cities_locations:
+#        pygame.draw.circle(screen, rgb_color, city_location, node_radius)
+
+#def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], delivery_data: dict, node_radius: int) -> None:
+#    """
+#    Desenha círculos representando as cidades com cores baseadas na prioridade do medicamento.
+#    - Vermelho (255, 0, 0): Crítico
+#    - Amarelo (255, 255, 0): Regular
+#    """
+#    for i, city_location in enumerate(cities_locations):
+#        # Define a cor baseada no dicionário de prioridades
+#        if i in delivery_data and delivery_data[i]['critico']:
+#            color = (255, 0, 0)    # Vermelho para Críticos
+#        else:
+#            color = (255, 255, 0)  # Amarelo para Regulares
+#        
+#        # Desenha o círculo da cidade
+#        pygame.draw.circle(screen, color, city_location, node_radius)
+#        
+#        # Adiciona uma borda preta para destacar as cidades no fundo branco
+#        pygame.draw.circle(screen, (0, 0, 0), city_location, node_radius, 2)
+
+def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], delivery_data: dict, node_radius: int) -> None:
     """
-    Draws circles representing cities on the given Pygame screen.
-
-    Parameters:
-    - screen (pygame.Surface): The Pygame surface on which to draw the cities.
-    - cities_locations (List[Tuple[int, int]]): List of (x, y) coordinates representing the locations of cities.
-    - rgb_color (Tuple[int, int, int]): Tuple of three integers (R, G, B) representing the color of the city circles.
-    - node_radius (int): The radius of the city circles.
-
-    Returns:
-    None
+    Desenha as cidades:
+    - Index 0 (Início): Quadrado Azul
+    - Outras Críticas: Círculo Vermelho
+    - Outras Regulares: Círculo Amarelo
     """
-    for city_location in cities_locations:
-        pygame.draw.circle(screen, rgb_color, city_location, node_radius)
-
-
+    for i, city_location in enumerate(cities_locations):
+        # 1. Identifica se é o ponto de partida (Depósito)
+        if i == 0:
+            color = (0, 0, 255) # Azul para o Depósito
+            # Define o retângulo (centralizado na coordenada x, y)
+            rect_size = node_radius * 2
+            rect = pygame.Rect(
+                city_location[0] - node_radius, 
+                city_location[1] - node_radius, 
+                rect_size, 
+                rect_size
+            )
+            pygame.draw.rect(screen, color, rect)
+            pygame.draw.rect(screen, (0, 0, 0), rect, 2) # Borda
+            
+        else:
+            # 2. Define a cor para as outras cidades baseada na criticidade
+            if i in delivery_data and delivery_data[i]['critico']:
+                color = (255, 0, 0)    # Vermelho para Críticos
+            else:
+                color = (255, 255, 0)  # Amarelo para Regulares
+            
+            # Desenha o círculo da cidade
+            pygame.draw.circle(screen, color, city_location, node_radius)
+            pygame.draw.circle(screen, (0, 0, 0), city_location, node_radius, 2) # Borda
 
 def draw_paths(screen: pygame.Surface, path: List[Tuple[int, int]], rgb_color: Tuple[int, int, int], width: int = 1):
     """

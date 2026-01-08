@@ -30,16 +30,63 @@ def generate_random_population(num_cities: int, population_size: int) -> List[Li
     return [random.sample(indices, num_cities) for _ in range(population_size)]
 
 # Fitness agora recebe a matriz e os índices
-def calculate_fitness(route: List[int], dist_matrix: List[List[float]]) -> float:
-    """Calcula a distância total usando a matriz de consulta."""
-    distance = 0
+#def calculate_fitness(route: List[int], dist_matrix: List[List[float]]) -> float:
+#    """Calcula a distância total usando a matriz de consulta."""
+#    distance = 0
+#    n = len(route)
+#    for i in range(n):
+#        # Pega a distância entre a cidade atual e a próxima na rota
+#        cidade_atual = route[i]
+#        proxima_cidade = route[(i + 1) % n]
+#        distance += dist_matrix[cidade_atual][proxima_cidade]
+#    return distance
+
+# --- CONSTANTES LOGÍSTICAS ---
+#VELOCIDADE = 15.0      # Pixels por unidade de tempo
+#PESO_CRITICO = 2000.0  # Penalidade massiva para medicamentos críticos
+#PESO_REGULAR = 200.0   # Penalidade para insumos comuns
+
+#VELOCIDADE = 10.0        # Mais lento faz o tempo ser mais precioso
+VELOCIDADE = 0.8
+#PESO_CRITICO = 50000.0  # Torna o atraso crítico um erro "fatal"
+#PESO_CRITICO = 5000.0  # Torna o atraso crítico um erro "fatal"
+PESO_CRITICO = 2000.0
+#PESO_REGULAR = 2000.0
+PESO_REGULAR = 500.0
+
+def calculate_fitness(route: List[int], dist_matrix: List[List[float]], delivery_data: dict) -> float:
+    """
+    Calcula o custo total: Distância física + Penalidade de Atraso Acumulada.
+    delivery_data: {indice_cidade: {'prazo': int, 'critico': bool}}
+    """
+    total_dist = 0
+    tempo_atual = 0
+    penalidade_total = 0
     n = len(route)
+    
+    # Simula a rota partindo da primeira cidade
     for i in range(n):
-        # Pega a distância entre a cidade atual e a próxima na rota
         cidade_atual = route[i]
         proxima_cidade = route[(i + 1) % n]
-        distance += dist_matrix[cidade_atual][proxima_cidade]
-    return distance
+        
+        # 1. Distância e Tempo de Viagem
+        d = dist_matrix[cidade_atual][proxima_cidade]
+        total_dist += d
+        
+        # O tempo avança baseado na distância percorrida
+        tempo_atual += (d / VELOCIDADE)
+        
+        # 2. Verificação de Atraso na chegada do destino
+        info = delivery_data[proxima_cidade]
+        if tempo_atual > info['prazo']:
+            atraso = tempo_atual - info['prazo']
+            # Penalidade proporcional ao atraso e à importância do medicamento
+            multiplicador = PESO_CRITICO if info['critico'] else PESO_REGULAR
+            #penalidade_total += (atraso ** 1.2) * multiplicador # Penalidade exponencial leve
+            penalidade_total += (atraso ** 2) * multiplicador
+            
+    # O Algoritmo busca MINIMIZAR este retorno
+    return total_dist + penalidade_total
 
 # O Crossover e Mutação agora manipulam inteiros (índices), não mais tuplas
 def order_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
