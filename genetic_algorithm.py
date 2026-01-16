@@ -54,39 +54,58 @@ PESO_CRITICO = 2000.0
 #PESO_REGULAR = 2000.0
 PESO_REGULAR = 500.0
 
+
+# Sorteia de 1 a 4 veículos no início do sistema
+#NUM_VEICULOS = random.randint(1, 4)
+NUM_VEICULOS = 3 # FIXO
+
+print(f"Sistema iniciado com {NUM_VEICULOS} veículos.")
+
 def calculate_fitness(route: List[int], dist_matrix: List[List[float]], delivery_data: dict) -> float:
     """
-    Calcula o custo total: Distância física + Penalidade de Atraso Acumulada.
-    delivery_data: {indice_cidade: {'prazo': int, 'critico': bool}}
+    Calcula o custo total dividindo a rota entre os veículos sorteados.
     """
-    total_dist = 0
-    tempo_atual = 0
-    penalidade_total = 0
-    n = len(route)
+    total_cost = 0
+    # O ponto 0 é o depósito. Removemos para redistribuir.
+    cidades_clientes = [c for c in route if c != 0]
     
-    # Simula a rota partindo da primeira cidade
-    for i in range(n):
-        cidade_atual = route[i]
-        proxima_cidade = route[(i + 1) % n]
+    n = len(cidades_clientes)
+    # Define quantas cidades cada veículo pega (divisão equilibrada)
+    tam = math.ceil(n / NUM_VEICULOS) if n > 0 else 0
+    
+    for v in range(NUM_VEICULOS):
+        # Extrai a fatia de cidades do veículo atual
+        sub_rota_clientes = cidades_clientes[v * tam : (v + 1) * tam]
         
-        # 1. Distância e Tempo de Viagem
-        d = dist_matrix[cidade_atual][proxima_cidade]
-        total_dist += d
-        
-        # O tempo avança baseado na distância percorrida
-        tempo_atual += (d / VELOCIDADE)
-        
-        # 2. Verificação de Atraso na chegada do destino
-        info = delivery_data[proxima_cidade]
-        if tempo_atual > info['prazo']:
-            atraso = tempo_atual - info['prazo']
-            # Penalidade proporcional ao atraso e à importância do medicamento
-            multiplicador = PESO_CRITICO if info['critico'] else PESO_REGULAR
-            #penalidade_total += (atraso ** 1.2) * multiplicador # Penalidade exponencial leve
-            penalidade_total += (atraso ** 2) * multiplicador
+        if not sub_rota_clientes:
+            continue
             
-    # O Algoritmo busca MINIMIZAR este retorno
-    return total_dist + penalidade_total
+        # A rota real SEMPRE começa no depósito (0) e volta para o depósito (0)
+        rota_completa = [0] + sub_rota_clientes + [0]
+        
+        tempo_atual = 0
+        distancia_veiculo = 0
+        
+        for i in range(len(rota_completa) - 1):
+            atual = rota_completa[i]
+            proximo = rota_completa[i+1]
+            
+            d = dist_matrix[atual][proximo]
+            distancia_veiculo += d
+            tempo_atual += (d / VELOCIDADE)
+            
+            # Penalidade de atraso (apenas para cidades, não para a volta ao depósito)
+            if proximo != 0:
+                info = delivery_data[proximo]
+                if tempo_atual > info['prazo']:
+                    atraso = tempo_atual - info['prazo']
+                    multiplicador = PESO_CRITICO if info['critico'] else PESO_REGULAR
+                    total_cost += (atraso ** 2) * multiplicador
+        
+        # O fitness é a soma das distâncias de todos os veículos + penalidades
+        total_cost += distancia_veiculo
+        
+    return total_cost
 
 # O Crossover e Mutação agora manipulam inteiros (índices), não mais tuplas
 def order_crossover(parent1: List[int], parent2: List[int]) -> List[int]:

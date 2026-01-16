@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import pygame
 from benchmark_att48 import *
+import time
 
 from genetic_algorithm import (
     mutate, 
@@ -18,6 +19,10 @@ from genetic_algorithm import (
     create_distance_matrix # Nova função necessária
 )
 
+from genetic_algorithm import NUM_VEICULOS
+import math
+# No topo, importe o NUM_VEICULOS que foi sorteado
+#from genetic_algorithm import NUM_VEICULOS, VELOCIDADE, PESO_CRITICO #... e as outras
 
 # Define constant values
 # pygame
@@ -44,6 +49,14 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 GRAY = (200, 200, 200)
 
+
+# Cores exclusivas para cada veículo (1 a 4)
+CORES_VEICULOS = [
+    (0, 0, 255),     # Azul (Veículo 1)
+    (0, 150, 0),     # Verde Escuro (Veículo 2)
+    (255, 140, 0),   # Laranja (Veículo 3)
+    (150, 0, 150)    # Roxo (Veículo 4)
+]
 
 # Initialize problem
 # Using Random cities generation
@@ -165,6 +178,15 @@ for i in range(N_CITIES):
 best_fitness_values = []
 best_solutions_history = []
 
+
+# Preparar divisões de rotas para desenho
+def separar_rotas(indices_lista):
+    """Auxiliar para transformar o DNA em sub-rotas visuais."""
+    cidades = [c for c in indices_lista if c != 0]
+    n = len(cidades)
+    tam = math.ceil(n / NUM_VEICULOS)
+    return [[0] + cidades[i*tam : (i+1)*tam] + [0] for i in range(NUM_VEICULOS)]
+
 # Main game loop
 running = True
 while running:
@@ -202,14 +224,55 @@ while running:
         #from draw_functions import draw_paths, draw_plot, draw_cities
     draw_plot(screen, list(range(len(best_fitness_values))), 
                   best_fitness_values, y_label="Fitness")
+
+    
+
+    # 1. Desenhar SEGUNDA melhor rota (Cinza)
+    #segunda_melhor_raw = population[1]
+    #rotas_cinza = separar_rotas(segunda_melhor_raw)
+    #for r_indices in rotas_cinza:
+        #r_coords = [cities_locations[idx] for idx in r_indices]
+        #draw_paths(screen, r_coords, GRAY, width=1)
+
+    if len(population) > 1:
+        rotas_cinza = separar_rotas(population[1])
+        for sub_indices in rotas_cinza:
+            coords = [cities_locations[idx] for idx in sub_indices]
+            draw_paths(screen, coords, GRAY, width=1)
+
+    # 2. Desenhar MELHOR rota (Colorida por veículo)
+    #melhor_raw = population[0]
+    #rotas_coloridas = separar_rotas(melhor_raw)
+    #for i, r_indices in enumerate(rotas_coloridas):
+        #if i < len(CORES_VEICULOS):
+            #cor = CORES_VEICULOS[i]
+            #r_coords = [cities_locations[idx] for idx in r_indices]
+            #draw_paths(screen, r_coords, cor, width=3)
+
+    # 2. Desenhar a MELHOR rota (Colorida por Veículo)
+    melhor_solucao = population[0]
+    rotas_coloridas = separar_rotas(melhor_solucao)
+    
+    for i, sub_indices in enumerate(rotas_coloridas):
+        if not sub_indices or len(sub_indices) < 2: continue
         
+        coords = [cities_locations[idx] for idx in sub_indices]
+        cor_veiculo = CORES_VEICULOS[i % len(CORES_VEICULOS)]
+        
+        # Desenha a linha da rota do veículo i
+        draw_paths(screen, coords, cor_veiculo, width=3)
+
+
     #draw_cities(screen, cities_locations, RED, NODE_RADIUS)
+    # 3. Desenhar as cidades por cima
     draw_cities(screen, cities_locations, delivery_data, NODE_RADIUS)
+    
+    
 
     # Desenha a melhor rota em azul
-    draw_paths(screen, best_path_coords, BLUE, width=3)
+    #draw_paths(screen, best_path_coords, BLUE, width=3)
     # Desenha a segunda melhor em cinza (opcional)
-    draw_paths(screen, second_best_coords, GRAY, width=1)
+    #draw_paths(screen, second_best_coords, GRAY, width=1)
     #except ImportError:
         # Fallback caso não tenha o arquivo draw_functions
         #for city in cities_locations:
@@ -217,7 +280,9 @@ while running:
         #if len(best_path_coords) > 1:
             #pygame.draw.lines(screen, BLUE, True, best_path_coords, 3)
 
-    print(f"Geracao {generation}: Melhor Distancia = {round(best_fitness, 2)}")
+    #print(f"Geracao {generation}: Melhor Fitness = {round(best_fitness, 2)}")
+    # Exibir quantos veículos estão operando
+    print(f"Geracao {generation}: Veículos: {NUM_VEICULOS} | Melhor Fitness/Custo = {round(best_fitness, 2)}")
 
     # --- EVOLUÇÃO (GERAR NOVA POPULAÇÃO) ---
     new_population = [population[0]]  # ELITISMO: Mantém o melhor
@@ -253,6 +318,26 @@ while running:
 
 
 # TODO: save the best individual in a file if it is better than the one saved.
+
+print("")
+print("Processamento finalizado.")
+print("Após a última análise pressione 'Q' para sair.")
+
+clock.tick(5) # Baixo FPS apenas para não consumir CPU na pausa
+
+runningFinal = True
+while runningFinal:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            runningFinal = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_q:
+                runningFinal = False
+    #print("Iniciando pausa...")
+    time.sleep(1)  # Pausa por X segundos - pra nao pesar muito o while
+    #print("Fim da pausa.")
+
+
 
 # exit software
 pygame.quit()
