@@ -1,7 +1,7 @@
 import random
 import math
-import copy 
-from typing import List, Tuple
+import copy
+from typing import List, Tuple, Union
 
 default_problems = {
 5: [(733, 251), (706, 87), (546, 97), (562, 49), (576, 253)],
@@ -47,46 +47,120 @@ def generate_random_population(num_cities: int, population_size: int) -> List[Li
 #PESO_REGULAR = 200.0   # Penalidade para insumos comuns
 
 #VELOCIDADE = 10.0        # Mais lento faz o tempo ser mais precioso
-VELOCIDADE = 0.8
-#PESO_CRITICO = 50000.0  # Torna o atraso crítico um erro "fatal"
-#PESO_CRITICO = 5000.0  # Torna o atraso crítico um erro "fatal"
-PESO_CRITICO = 2000.0
-#PESO_REGULAR = 2000.0
-PESO_REGULAR = 500.0
+VELOCIDADE = 100.0 # KM/h
+PESO_CRITICO = 150.0   # Penalidade por hora de atraso ao quadrado para entregas críticas (em KM equivalentes)
+PESO_REGULAR = 100.0   # Penalidade por hora de atraso ao quadrado para entregas regulares (em KM equivalentes)
+VEHICLE_AUTONOMY = 1200.0  # Autonomia do veículo em KM
 
-def calculate_fitness(route: List[int], dist_matrix: List[List[float]], delivery_data: dict) -> float:
+def find_nearest_base(current_city: int, base_indices: List[int], dist_matrix: List[List[float]]) -> Tuple[int, float]:
+    """Finds the nearest base and the distance to it from a given city."""
+    if not base_indices:
+        # Fallback to depot 0 if no bases are defined.
+        return 0, dist_matrix[current_city][0]
+
+    # Create a list of (base_index, distance) tuples
+    distances_to_bases = [(base_idx, dist_matrix[current_city][base_idx]) for base_idx in base_indices]
+    
+    # Find the base with the minimum distance
+    nearest_base_idx, min_dist = min(distances_to_bases, key=lambda item: item[1])
+    
+    return nearest_base_idx, min_dist
+
+
+def calculate_fitness(route: List[int], dist_matrix: List[List[float]], delivery_data: dict, base_indices: List[int], return_full_path: bool = False) -> Union[float, Tuple[float, dict]]:
     """
-    Calcula o custo total: Distância física + Penalidade de Atraso Acumulada.
-    delivery_data: {indice_cidade: {'prazo': int, 'critico': bool}}
+    Calculates the total cost for a route, considering vehicle autonomy and refueling at the nearest base.
+
+    The cost is a sum of:
+    1. Total travel distance, including trips back to the depot for refueling.
+    2. Penalties for late deliveries.
+
+    The vehicle starts at the main base (base_indices[0]), visits cities in order, and returns to the nearest base.
+    If the vehicle determines it cannot reach the next planned city AND then return to the
+    nearest base from there, it will first travel to its current nearest base to refuel.
+
+    Parameters:
+    - route (List[int]): A list of city indices representing the delivery order. Excludes the depot.
+    - dist_matrix (List[List[float]]): Pre-calculated distance matrix between all cities.
+    - delivery_data (dict): Dictionary with deadline and priority for each city.
+    - base_indices (List[int]): A list of city indices that are designated as refueling bases.
+    - return_full_path (bool): If True, returns the cost and a dictionary with detailed
+      information about the path (full path, distance, penalty, and refuel stops).
+
+    Returns:
+    - float: The total cost of the route.
+    - OR Tuple[float, dict]: The total cost and a dictionary of path details.
     """
     total_dist = 0
     tempo_atual = 0
     penalidade_total = 0
-    n = len(route)
+    refuel_stops = 0
     
-    # Simula a rota partindo da primeira cidade
-    for i in range(n):
-        cidade_atual = route[i]
-        proxima_cidade = route[(i + 1) % n]
+    # Vehicle starts at the main depot (first base in the list)
+    current_location = base_indices[0]
+    remaining_autonomy = VEHICLE_AUTONOMY
+    
+    full_path_indices = [current_location] # The journey always starts at a base
+
+    # Iterate through each destination in the proposed route
+    for next_city in route:
+        dist_to_next = dist_matrix[current_location][next_city]
         
-        # 1. Distância e Tempo de Viagem
-        d = dist_matrix[cidade_atual][proxima_cidade]
-        total_dist += d
-        
-        # O tempo avança baseado na distância percorrida
-        tempo_atual += (d / VELOCIDADE)
-        
-        # 2. Verificação de Atraso na chegada do destino
-        info = delivery_data[proxima_cidade]
+        # Find the distance from the potential next city to its nearest base
+        _, dist_from_next_to_nearest_base = find_nearest_base(next_city, base_indices, dist_matrix)
+
+        # --- Autonomy Check ---
+        # Does the vehicle have enough fuel to go to the next city AND make it to the nearest base from there?
+        # If not, it must refuel first.
+        if (dist_to_next + dist_from_next_to_nearest_base) > remaining_autonomy:
+            # 1. Find the nearest base from the *current* location to refuel.
+            refuel_base_idx, dist_to_refuel_base = find_nearest_base(current_location, base_indices, dist_matrix)
+
+            # 2. Travel from the current location back to that nearest base
+            total_dist += dist_to_refuel_base
+            tempo_atual += (dist_to_refuel_base / VELOCIDADE)
+            
+            # 3. Refuel: Autonomy is reset. The vehicle is now at the refuel base.
+            remaining_autonomy = VEHICLE_AUTONOMY
+            current_location = refuel_base_idx
+            full_path_indices.append(current_location) # Log the refueling stop
+            refuel_stops += 1
+            
+            # 4. Update the distance for the next leg, which is now from the new base.
+            dist_to_next = dist_matrix[current_location][next_city]
+
+        # --- Travel to the next city ---
+        total_dist += dist_to_next
+        tempo_atual += (dist_to_next / VELOCIDADE)
+        remaining_autonomy -= dist_to_next
+        current_location = next_city
+        full_path_indices.append(current_location) # Log the city visit
+
+        # --- Calculate Penalties at Destination ---
+        info = delivery_data[next_city]
         if tempo_atual > info['prazo']:
             atraso = tempo_atual - info['prazo']
-            # Penalidade proporcional ao atraso e à importância do medicamento
             multiplicador = PESO_CRITICO if info['critico'] else PESO_REGULAR
-            #penalidade_total += (atraso ** 1.2) * multiplicador # Penalidade exponencial leve
             penalidade_total += (atraso ** 2) * multiplicador
-            
-    # O Algoritmo busca MINIMIZAR este retorno
-    return total_dist + penalidade_total
+
+    # --- Final return to a base ---
+    # After visiting all cities, the vehicle must return to the nearest base.
+    final_base_idx, dist_to_final_base = find_nearest_base(current_location, base_indices, dist_matrix)
+    total_dist += dist_to_final_base
+    full_path_indices.append(final_base_idx) # Log the final return
+        
+    cost = total_dist + penalidade_total
+    
+    if return_full_path:
+        details = {
+            "full_path": full_path_indices,
+            "distance": total_dist,
+            "penalty": penalidade_total,
+            "refuel_stops": refuel_stops
+        }
+        return cost, details
+    else:
+        return cost
 
 # O Crossover e Mutação agora manipulam inteiros (índices), não mais tuplas
 def order_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
@@ -107,12 +181,15 @@ def order_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
     return child
 
 def mutate(solution: List[int], mutation_probability: float) -> List[int]:
-    if random.random() < mutation_probability:
+    # Add a guard to ensure there are at least 2 cities to swap
+    if len(solution) > 1 and random.random() < mutation_probability:
         idx1, idx2 = random.sample(range(len(solution)), 2)
         solution[idx1], solution[idx2] = solution[idx2], solution[idx1]
     return solution
 
 def sort_population(population: List[List[int]], fitness: List[float]) -> Tuple[List[List[int]], List[float]]:
     combined = sorted(zip(population, fitness), key=lambda x: x[1])
-    sorted_pop, sorted_fit = zip(*combined)
-    return list(sorted_pop), list(sorted_fit)
+    if not combined:
+        return [], []
+    sorted_pop, sorted_fit = map(list, zip(*combined))
+    return sorted_pop, sorted_fit
