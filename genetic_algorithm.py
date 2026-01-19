@@ -48,9 +48,9 @@ def generate_random_population(num_cities: int, population_size: int) -> List[Li
 
 #VELOCIDADE = 10.0        # Mais lento faz o tempo ser mais precioso
 VELOCIDADE = 100.0 # KM/h
-PESO_CRITICO = 150.0   # Penalidade por hora de atraso ao quadrado para entregas críticas (em KM equivalentes)
-PESO_REGULAR = 100.0   # Penalidade por hora de atraso ao quadrado para entregas regulares (em KM equivalentes)
-VEHICLE_AUTONOMY = 1200.0  # Autonomia do veículo em KM
+PESO_CRITICO = 0.5   # Penalidade por hora de atraso ao quadrado para entregas críticas (em KM equivalentes) - AJUSTADO
+PESO_REGULAR = 0.1   # Penalidade por hora de atraso ao quadrado para entregas regulares (em KM equivalentes) - AJUSTADO
+VEHICLE_AUTONOMY = 10000.0  # Autonomia do veículo em KM - AJUSTADO
 
 def find_nearest_base(current_city: int, base_indices: List[int], dist_matrix: List[List[float]]) -> Tuple[int, float]:
     """Finds the nearest base and the distance to it from a given city."""

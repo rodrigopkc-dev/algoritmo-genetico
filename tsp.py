@@ -141,25 +141,6 @@ def perguntar(prompt: str) -> str:
 )
     return response.text
 
-def desenhar_caixa_texto(tela, texto, x, y, largura, altura, fonte, cor_texto=(255, 255, 255), cor_fundo=(30, 30, 30), cor_borda=(200, 200, 200), padding=10):
-    # Fundo
-    pygame.draw.rect(tela, cor_fundo, (x, y, largura, altura))
-    # Borda
-    pygame.draw.rect(tela, cor_borda, (x, y, largura, altura), 2)
-
-    print(texto)
-
-    linhas = quebrar_texto(texto, fonte, largura - 2 * padding)
-
-    y_texto = y + padding
-    for linha in linhas:
-        render = fonte.render(linha, True, cor_texto)
-        tela.blit(render, (x + padding, y_texto))
-        y_texto += fonte.get_height()
-
-        if y_texto > y + altura - padding:
-            break  # evita desenhar fora da caixa
-
 def chamar_gemini(prompt, timestamp):
     global texto_gemini, processando
     texto_gemini = perguntar(prompt)
@@ -229,15 +210,7 @@ while running:
 
     generation = next(generation_counter)
     screen.fill(WHITE)
-    desenhar_caixa_texto(
-        tela=screen,
-        texto=texto_gemini,
-        x=50,
-        y=400,
-        largura=700,
-        altura=150,
-        fonte=fonte
-    )
+
 
     # 3. CÁLCULO DE FITNESS: Calcula o fitness para toda a população.
     # O caminho completo não é necessário aqui para economizar tempo.
@@ -348,15 +321,15 @@ while running:
             with open(data_path, 'w') as f:
                 json.dump(results_data, f, indent=4)
 
-            threading.Thread(target=chamar_gemini(rf'''Atue como um especialista em Pesquisa Operacional e Ciência de Dados. Analise os resultados de uma execução de Algoritmo Genético aplicado ao Problema do Caixeiro Viajante (TSP) 
-                                                  com restrições (de tempo de entrega, autonomia dos veículos e prioridades de algumas cidades).
-                                                                Dados da Execução:
-                                                                {results_data}
-                                                                Objetivo: Fornecer um relatório técnico resumido para um trabalho de pós-graduação, abordando:
-                                                                Eficiência de Convergência: O que o 'found_at_generation' indica sobre o esforço computacional?
-                                                                Decomposição do Custo: Analise a relação entre distância real e penalidades. O que o 'best_cost' bilionário sugere sobre a viabilidade da solução?
-                                                                Logística e Roteirização: Interprete a estrutura do 'full_path_with_bases' (uso de bases 0, 10, 20 e paradas de reabastecimento).
-                                                                Conclusão Técnica: A solução é satisfatória ou o algoritmo precisa de ajuste de hiperparâmetros ou da função de fitness?''', timestamp=timestamp), daemon=True).start()
+            # threading.Thread(target=chamar_gemini(rf'''Atue como um especialista em Pesquisa Operacional e Ciência de Dados. Analise os resultados de uma execução de Algoritmo Genético aplicado ao Problema do Caixeiro Viajante (TSP) 
+            #                                       com restrições (de tempo de entrega, autonomia dos veículos e prioridades de algumas cidades).
+            #                                                     Dados da Execução:
+            #                                                     {results_data}
+            #                                                     Objetivo: Fornecer um relatório técnico resumido para um trabalho de pós-graduação, abordando:
+            #                                                     Eficiência de Convergência: O que o 'found_at_generation' indica sobre o esforço computacional?
+            #                                                     Decomposição do Custo: Analise a relação entre distância real e penalidades. O que o 'best_cost' bilionário sugere sobre a viabilidade da solução?
+            #                                                     Logística e Roteirização: Interprete a estrutura do 'full_path_with_bases' (uso de bases 0, 10, 20 e paradas de reabastecimento).
+            #                                                     Conclusão Técnica: A solução é satisfatória ou o algoritmo precisa de ajuste de hiperparâmetros ou da função de fitness?''', timestamp=timestamp), daemon=True).start()
             
         
 
