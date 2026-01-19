@@ -1,0 +1,40 @@
+Este relatório apresenta uma análise técnica da execução do Algoritmo Genético (AG) aplicado ao Problema de Roteirização de Veículos (VRP) com restrições de autonomia, tempo e prioridade.
+
+---
+
+### Relatório de Análise Técnica: Otimização de Roteirização via Algoritmo Genético
+
+#### 1. Eficiência de Convergência e Esforço Computacional
+A execução atingiu a marca de **4.000 gerações**. Em problemas de Pesquisa Operacional, o número de gerações é um indicativo do esforço para explorar o espaço de busca (espaço de soluções). 
+*   **Análise:** O fato de o custo ainda ser dominado massivamente pela penalidade na geração 4.000 sugere que o algoritmo encontrou um "platô de viabilidade". Ou seja, o AG está gastando a maior parte do esforço computacional tentando satisfazer as restrições rígidas (autonomia e janelas de tempo), restando pouca margem para a otimização da distância real (custo logístico primário).
+*   **Implicação:** A convergência pode estar ocorrendo prematuramente em um mínimo local onde a solução é "quase viável" ou "viável mas ineficiente", devido ao alto rigor das penalidades.
+
+#### 2. Decomposição do Custo e Viabilidade Logística
+Uma análise da função de *fitness* revela uma disparidade crítica:
+*   **Distância Real:** 135.417,52 (aprox. 0,32% do custo total).
+*   **Penalidade:** 41.478.835,65 (aprox. 99,68% do custo total).
+
+**Interpretação:**
+A solução atual **não é logisticamente otimizada**, embora possa ser tecnicamente viável (dependendo de quão próximo de zero o algoritmo considera uma solução "válida"). O componente de penalidade é ordens de magnitude maior que a distância. Isso indica que:
+1.  Existem violações de restrições (ex: atrasos mínimos ou excedente de autonomia) que o algoritmo não conseguiu eliminar.
+2.  O "peso" da penalidade está tão alto que o algoritmo ignora rotas mais curtas se elas oferecerem o menor risco de aumentar a penalidade. 
+3.  **Viabilidade:** Do ponto de vista prático, uma solução onde a penalidade domina o custo total sinaliza que o modelo está priorizando a sobrevivência da rota em detrimento da eficiência operacional.
+
+#### 3. Logística e Roteirização (Análise de Caminhos e Bases)
+O campo `full_paths_with_bases` e o dado de `refuel_stops` (42 paradas) revelam a estrutura operacional:
+*   **Frequência de Reabastecimento:** Com 43 pontos de entrega (conforme o `best_chromosome`) e 42 paradas de reabastecimento/base, a razão é de quase **1:1**. Isso significa que, em média, o veículo visita um cliente e retorna a uma base ou ponto de reabastecimento (IDs 0, 10, 20, 30, 47).
+*   **Padrão de Roteiro:** 
+    *   O Veículo 1, por exemplo, faz: `[0, 0, 38, 47, 23, 47, 34, 47...]`. 
+    *   Este padrão de "bate-volta" ou "estrela" indica uma **autonomia extremamente limitada** ou uma penalidade de autonomia tão severa que o algoritmo não arrisca sequências de entregas sem recarregar.
+*   **Utilização de Bases:** O uso de múltiplas bases (0, 47, 20, 30, 10) sugere uma infraestrutura de apoio bem distribuída, mas subutilizada para consolidar rotas mais longas.
+
+#### 4. Conclusão Técnica e Recomendações
+A solução atual é **subótima**. O algoritmo conseguiu organizar a sequência de entregas, mas a logística resultante é ineficiente (excessivo número de paradas técnicas).
+
+**Recomendações de Ajuste:**
+1.  **Calibração de Pesos (Penalty Tuning):** O peso da penalidade deve ser reduzido gradualmente ou normalizado. Se a penalidade for muito alta (como observado), o AG para de buscar distâncias menores. Recomenda-se o uso de **Penalidades Adaptativas**, que diminuem quando o algoritmo encontra soluções viáveis e aumentam quando as violações persistem.
+2.  **Ajuste de Operadores Genéticos:** Introduzir uma busca local (Algoritmo Memético) após o cruzamento para tentar reduzir a distância entre as paradas de reabastecimento obrigatórias.
+3.  **Análise da Restrição de Autonomia:** Verificar se a restrição de autonomia no modelo reflete a realidade. Se os veículos puderem fazer 2 ou 3 entregas antes de reabastecer, os pesos atuais estão impedindo essa descoberta.
+4.  **Aumento da Diversidade:** Aumentar a taxa de mutação ou utilizar uma estratégia de "Elitismo" menos agressiva pode ajudar o algoritmo a saltar de mínimos locais onde ele se sente "preso" devido às altas penalidades.
+
+**Veredito:** O modelo está funcionando como um buscador de viabilidade, mas ainda não como um otimizador de rotas. É necessário equilibrar a função de custo para que a distância real tenha maior influência no processo de seleção.

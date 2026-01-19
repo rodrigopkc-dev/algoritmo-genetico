@@ -1,0 +1,35 @@
+Este relatório técnico analisa os resultados obtidos pela execução de um Algoritmo Genético (AG) para a resolução do Problema de Roteirização de Veículos (VRP) com quatro veículos e múltiplas restrições.
+
+---
+
+### Relatório de Análise Técnica: Otimização de Roteirização via Algoritmo Genético
+
+#### 1. Eficiência de Convergência
+A execução atingiu **6.000 gerações**, o que representa um esforço computacional considerável para um problema de aproximadamente 43-46 pontos de entrega. Embora o dado específico de `found_at_generation` (em qual geração a melhor solução foi fixada) não tenha sido explicitado no dicionário, o fato de o custo de penalidade ainda ser ordens de magnitude superior à distância percorrida sugere que o algoritmo ainda estava "lutando" para encontrar uma região de viabilidade no espaço de busca. Em problemas de Pesquisa Operacional, uma convergência eficiente deve mostrar o componente de penalidade aproximando-se de zero, permitindo que a função objetivo foque exclusivamente na minimização da distância.
+
+#### 2. Decomposição do Custo: Distância vs. Penalidade
+A análise da função de fitness revela um desequilíbrio crítico:
+*   **Distância Real:** 133.460,91 unidades.
+*   **Penalidade:** 40.071.024,35 unidades.
+*   **Proporção:** A penalidade representa **99,67%** do custo total.
+
+**Análise de Viabilidade:** Do ponto de vista logístico, a solução atual é **tecnicamente inviável** ou altamente subótima. Quando a penalidade domina o custo total desta forma, o algoritmo para de otimizar a logística (distância) e passa a se comportar de forma errática para tentar reduzir infrações de restrições (tempo, autonomia ou prioridade). O "gradiente" da função de custo está tão inclinado em direção às penalidades que pequenas melhorias na distância são ignoradas se causarem o menor aumento nas violações.
+
+#### 3. Logística e Roteirização (Interpretando `full_paths_with_bases`)
+A análise dos caminhos (`full_paths_with_bases`) revela uma estrutura de rotas fragmentada:
+*   **Frequência de Reabastecimento:** Foram registradas **42 paradas de reabastecimento** para um total de 43-46 pontos. Isso indica que, em média, o veículo visita quase uma base/ponto de reabastecimento para cada cliente visitado.
+*   **Uso de Bases:** Observa-se a inserção constante de nós de apoio (ex: `47`, `30`, `20`, `10`).
+*   **Eficiência Logística:** Esta configuração sugere um "efeito ioiô" (o veículo sai da base, entrega em um ponto e volta ou vai a um posto). Isso pode ser causado por duas razões:
+    1.  **Restrição de Autonomia severa demais:** O veículo possui um tanque/bateria muito pequeno para a dispersão geográfica dos pontos.
+    2.  **Modelagem de Penalidade:** O algoritmo prefere desviar a rota para reabastecer a cada passo para garantir que a penalidade de autonomia nunca seja ativada, sacrificando totalmente a eficiência da distância.
+
+#### 4. Conclusão Técnica e Recomendações
+A solução atual **não é satisfatória** para uma implementação real, servindo apenas como uma prova de conceito de que o algoritmo consegue encadear os nós. O AG está preso em um platô onde a viabilidade (respeitar restrições) custa caro demais à eficiência.
+
+**Sugestões de Ajuste:**
+1.  **Normalização da Penalidade:** O peso da penalidade deve ser recalibrado. Atualmente, ele atua como um "Big M" excessivo. Recomenda-se o uso de **Penalidades Dinâmicas**, que começam baixas (para permitir a exploração do espaço) e aumentam conforme as gerações avançam.
+2.  **Revisão da Autonomia:** Avaliar se a restrição de autonomia dos veículos condiz com a realidade geográfica. Se for necessária uma parada a cada entrega, a frota atual é insuficiente ou a localização das bases é ineficiente.
+3.  **Operadores Heurísticos:** Introduzir operadores de busca local (como *2-opt* ou *Swap*) após o cruzamento genético para refinar a distância dentro de cada rota individual antes de calcular a penalidade.
+4.  **Crossover de Rotas:** Verificar se o crossover está respeitando a estrutura de rotas ou se está apenas misturando o `giant_tour`, o que pode destruir boas sequências de entrega já encontradas.
+
+**Veredito:** O algoritmo precisa de **ajuste fino (fine-tuning)** nos hiperparâmetros de penalidade e, possivelmente, uma revisão na lógica de inserção de paradas de reabastecimento para permitir rotas mais longas e fluidas.
