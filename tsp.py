@@ -129,7 +129,7 @@ def main():
     GEMINI_API_KEY = os.getenv("API_KEY")
 
     if not GEMINI_API_KEY:
-        raise RuntimeError("API Key do Gemini não encontrada!")
+        print("API Key do Gemini não encontrada!")
 
     client = genai.Client()
 
@@ -286,8 +286,8 @@ def main():
                 # Write the data to a JSON file
                 with open(data_path, 'w') as f:
                     json.dump(results_data, f, indent=4)
-
-                threading.Thread(target=chamar_gemini(rf'''Atue como um especialista em Pesquisa Operacional e Ciência de Dados. Analise os resultados de uma execução de Algoritmo Genético aplicado ao Problema do Caixeiro Viajante (TSP) 
+                if  GEMINI_API_KEY:
+                    threading.Thread(target=chamar_gemini(rf'''Atue como um especialista em Pesquisa Operacional e Ciência de Dados. Analise os resultados de uma execução de Algoritmo Genético aplicado ao Problema do Caixeiro Viajante (TSP) 
                                                       com restrições (de tempo de entrega, autonomia dos veículos e prioridades de algumas cidades).
                                                                     Dados da Execução:
                                                                     {results_data}

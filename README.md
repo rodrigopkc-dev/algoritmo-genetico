@@ -52,6 +52,9 @@ Certifique-se de ter o Python 3 instalado. Em seguida, instale as bibliotecas ne
 pip install -r requirements.txt
 ```
 
+Nesse cenário usamos o Google Gemini para gerar os relatórios, então é necessário ter uma API_KEY válida num arquivo .env 
+
+
 ### Configuração
 
 Você pode ajustar os hiperparâmetros do algoritmo diretamente nos arquivos:
