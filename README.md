@@ -1,70 +1,85 @@
-# TSP Solver using Genetic Algorithm
+# Solucionador de Problema de Roteirização de Veículos (VRP) com Algoritmo Genético
 
-This repository contains a Python implementation of a Traveling Salesman Problem (TSP) solver using a Genetic Algorithm (GA). The TSP is a classic problem in the field of combinatorial optimization, where the goal is to find the shortest possible route that visits a set of given cities exactly once and returns to the original city.
+Este projeto implementa um Algoritmo Genético (AG) para resolver uma variação complexa do Problema de Roteirização de Veículos (VRP). A solução é visualizada em tempo real usando a biblioteca Pygame.
 
-![alt text](image.png)
-![alt text](image-1.png)
-## Prerequisites
+## Visão Geral
 
-- Download and Install conda environment manager.
-  -  https://www.anaconda.com/download
-- Open the `Anaconda Prompt`
-- create the `fiap_tsp` environment
-  - `conda env create --file environment.yml`
-- activate the environment
-  - `conda activate fiap_tsp`  
+O objetivo é encontrar as rotas ótimas para uma frota de veículos que parte de um depósito principal, realiza uma série de entregas em diferentes cidades e retorna a um dos múltiplos depósitos disponíveis. O problema é baseado no benchmark `att48` e inclui as seguintes restrições:
 
-## How to Run
+*   **Múltiplos Depósitos:** Existem várias bases que podem ser usadas para reabastecimento e como ponto final das rotas.
+*   **Autonomia do Veículo:** Os veículos têm uma autonomia limitada e precisam reabastecer na base mais próxima quando o combustível não é suficiente para chegar ao próximo destino e, de lá, a uma base.
+*   **Janelas de Tempo e Prioridades:** Cada entrega tem um prazo e pode ser classificada como "crítica". Atrasos geram penalidades na função de custo, com pesos maiores para entregas críticas.
 
-Execute the following command in your terminal to run the program:
+## Funcionalidades
 
-### Pygame
-```bash
-python tps.py
-```
-> Press the 'q' key to quit the program.
+*   **Algoritmo Genético:** Utiliza elitismo, seleção por roleta, crossover de ordem (OX1) e mutação de troca (swap mutation).
+*   **Visualização em Tempo Real:** Uma interface Pygame exibe as cidades, as melhores rotas da geração atual, um gráfico de convergência do fitness e informações detalhadas da execução.
+*   **Modelo de Custo Complexo:** A função de fitness combina a distância total percorrida com penalidades quadráticas por atrasos, incentivando soluções que são tanto curtas quanto pontuais.
+*   **Lógica de Reabastecimento Inteligente:** O algoritmo decide proativamente quando um veículo deve desviar para uma base para reabastecer.
+*   **Salvamento de Resultados:** A cada `N` gerações, o sistema salva uma captura de tela e um arquivo JSON com os dados da melhor solução daquela geração.
+*   **Rastreamento da Melhor Solução:** O sistema mantém e atualiza constantemente os arquivos `best_solution_ever.json` e `best_solution_ever.png` com a melhor solução encontrada em toda a execução.
 
+## Como Funciona
 
+### Representação do Cromossomo
 
-## Overview
+Cada indivíduo (cromossomo) na população representa uma ordem de visitação para as cidades de entrega. É uma permutação dos índices das cidades que não são bases. O algoritmo então constrói o caminho completo, inserindo o depósito inicial, as paradas para reabastecimento e o depósito final.
 
-The TSP solver employs a Genetic Algorithm to iteratively evolve a population of candidate solutions towards an optimal or near-optimal solution. The GA operates by mimicking the process of natural selection, where individuals with higher fitness (i.e., shorter route distance) are more likely to survive and produce offspring.
+### Função de Fitness
 
-## Files
+O custo (fitness) de uma rota é calculado como:
+`Custo Total = Distância Total Percorrida + Penalidade Total`
 
-- **genetic_algorithm.py**: Contains the implementation of the Genetic Algorithm, including functions for generating random populations, calculating fitness, performing crossover and mutation operations, and sorting populations based on fitness.
-- **tsp.py**: Implements the main TSP solver using Pygame for visualization. It initializes the problem, creates the initial population, and iteratively evolves the population while visualizing the best solution found so far.
-- **draw_functions.py**: Provides functions for drawing cities, paths, and plots using Pygame.
+*   **Distância Total:** Soma das distâncias euclidianas de todo o percurso, incluindo os desvios para reabastecimento.
+*   **Penalidade Total:** Calculada com base nos atrasos. Se `tempo_chegada > prazo_entrega`, uma penalidade é adicionada: `penalidade = (atraso^2) * PESO`. O `PESO` é maior para entregas críticas.
 
-## Usage
+### Estrutura do Código
 
-To run the TSP solver, execute the `tsp.py` script using Python. The solver allows you to choose between different problem instances:
+*   `tsp.py`: O arquivo principal que gerencia a simulação do Pygame, o loop do algoritmo genético e a visualização dos dados.
+*   `genetic_algorithm.py`: Contém a lógica central do AG, incluindo a função de fitness, operadores de crossover e mutação, e a lógica de cálculo de rotas com reabastecimento.
+*   `benchmark_att48.py`: Fornece as coordenadas das 48 cidades do problema benchmark.
+*   `draw_functions.py`: Funções auxiliares para desenhar os elementos na tela do Pygame.
+*   `results/`: Diretório onde as capturas de tela e os arquivos JSON de resultados são salvos.
 
-- Randomly generated cities
-- Default predefined problems with 10, 12, or 15 cities
-- `att48` benchmark dataset (uncomment relevant code in `tsp.py`)
+## Como Executar
 
-You can customize parameters such as population size, number of generations, and mutation probability directly in the `tsp.py` script.
+### Pré-requisitos
 
-## Dependencies
-
-- Python 3.x
-- Pygame (for visualization)
-
-Ensure Pygame is installed before running the solver. You can install Pygame using pip:
+Certifique-se de ter o Python 3 instalado. Em seguida, instale as bibliotecas necessárias:
 
 ```bash
-pip install pygame
+pip install -r requirements.txt
 ```
 
-## Acknowledgments
+### Configuração
 
-This TSP solver was developed as a learning project and draws inspiration from various online resources and academic materials on Genetic Algorithms and the Traveling Salesman Problem. Special thanks to the authors of those resources for sharing their knowledge.
+Você pode ajustar os hiperparâmetros do algoritmo diretamente nos arquivos:
 
-## License
+*   **Em `tsp.py`:**
+    *   `POPULATION_SIZE`: Tamanho da população.
+    *   `MUTATION_PROBABILITY`: Probabilidade de mutação.
+    *   `BASE_INDICES`: Índices das cidades que funcionam como depósitos/bases.
+*   **Em `genetic_algorithm.py`:**
+    *   `VELOCIDADE`: Velocidade do veículo (km/h), usada para calcular o tempo de viagem.
+    *   `PESO_CRITICO` / `PESO_REGULAR`: Pesos para as penalidades de atraso.
+    *   `VEHICLE_AUTONOMY`: Autonomia do veículo em quilômetros.
 
-This project is licensed under the [MIT License](LICENSE).
+### Execução
 
----
+Para iniciar a simulação, execute o seguinte comando no terminal:
 
-Feel free to contribute to this repository by providing enhancements, bug fixes, or additional features. If you encounter any issues or have suggestions for improvements, please open an issue on the repository. Happy solving!
+```bash
+python tsp.py
+```
+
+A janela do Pygame será aberta e o algoritmo começará a evoluir. Pressione `Q` para encerrar a simulação.
+
+## Análise dos Resultados
+
+Os resultados são salvos no diretório `results/`.
+
+*   `data_gen_XXXX.json`: Contém os detalhes da melhor solução na geração `XXXX`, incluindo custo, distância, penalidade, ordem de entrega e o caminho completo com as bases.
+*   `screenshot_gen_XXXX.png`: Uma imagem da visualização na geração `XXXX`.
+*   `best_solution_ever.json` e `best_solution_ever.png`: O melhor resultado encontrado durante toda a execução, atualizado em tempo real.
+
+Esses arquivos são essenciais para analisar a convergência do algoritmo e a qualidade logística das rotas encontradas.
