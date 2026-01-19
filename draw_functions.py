@@ -13,33 +13,6 @@ from typing import List, Tuple
 
 matplotlib.use("Agg")
 
-
-#def draw_plot(screen: pygame.Surface, x: list, y: list, x_label: str = 'Generation', y_label: str = 'Fitness') -> None:
-    #"""
-    #Draw a plot on a Pygame screen using Matplotlib.
-
-    #Parameters:
-    #- screen (pygame.Surface): The Pygame surface to draw the plot on.
-    #- x (list): The x-axis values.
-    #- y (list): The y-axis values.
-    #- x_label (str): Label for the x-axis (default is 'Generation').
-    #- y_label (str): Label for the y-axis (default is 'Fitness').
-    #"""
-    #fig, ax = plt.subplots(figsize=(4, 4), dpi=100)
-    #ax.plot(x, y)
-    #ax.set_ylabel(y_label)
-    #ax.set_xlabel(x_label)
-    #plt.tight_layout()
-
-    #canvas = FigureCanvasAgg(fig)
-    #canvas.draw()
-    #renderer = canvas.get_renderer()
-    #raw_data = renderer.tostring_rgb()
-
-    #size = canvas.get_width_height()
-    #surf = pygame.image.fromstring(raw_data, size, "RGB")
-    #screen.blit(surf, (0, 0))
-
 def draw_plot(screen: pygame.Surface, x: list, y: list, x_label: str = 'Generation', y_label: str = 'Fitness') -> None:
     """
     Draw a plot on a Pygame screen using Matplotlib.
@@ -80,41 +53,7 @@ def draw_plot(screen: pygame.Surface, x: list, y: list, x_label: str = 'Generati
     # Importante: Fechar a figura para não consumir memória a cada geração
     plt.close(fig)
 
-    
-#def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], rgb_color: Tuple[int, int, int], node_radius: int) -> None:
-#    """
-#    Draws circles representing cities on the given Pygame screen.
-#
-#    Parameters:
-#    - screen (pygame.Surface): The Pygame surface on which to draw the cities.
-#    - cities_locations (List[Tuple[int, int]]): List of (x, y) coordinates representing the locations of cities.
-#    - rgb_color (Tuple[int, int, int]): Tuple of three integers (R, G, B) representing the color of the city circles.
-#    - node_radius (int): The radius of the city circles.
-#
-#    Returns:
-#    None
-#    """
-#    for city_location in cities_locations:
-#        pygame.draw.circle(screen, rgb_color, city_location, node_radius)
 
-#def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], delivery_data: dict, node_radius: int) -> None:
-#    """
-#    Desenha círculos representando as cidades com cores baseadas na prioridade do medicamento.
-#    - Vermelho (255, 0, 0): Crítico
-#    - Amarelo (255, 255, 0): Regular
-#    """
-#    for i, city_location in enumerate(cities_locations):
-#        # Define a cor baseada no dicionário de prioridades
-#        if i in delivery_data and delivery_data[i]['critico']:
-#            color = (255, 0, 0)    # Vermelho para Críticos
-#        else:
-#            color = (255, 255, 0)  # Amarelo para Regulares
-#        
-#        # Desenha o círculo da cidade
-#        pygame.draw.circle(screen, color, city_location, node_radius)
-#        
-#        # Adiciona uma borda preta para destacar as cidades no fundo branco
-#        pygame.draw.circle(screen, (0, 0, 0), city_location, node_radius, 2)
 
 def draw_cities(screen: pygame.Surface, cities_locations: List[Tuple[int, int]], delivery_data: dict, node_radius: int) -> None:
     """

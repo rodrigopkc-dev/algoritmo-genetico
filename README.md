@@ -17,6 +17,7 @@ O objetivo é encontrar as rotas ótimas para uma frota de veículos que parte d
 *   **Modelo de Custo Complexo:** A função de fitness combina a distância total percorrida com penalidades quadráticas por atrasos, incentivando soluções que são tanto curtas quanto pontuais.
 *   **Lógica de Reabastecimento Inteligente:** O algoritmo decide proativamente quando um veículo deve desviar para uma base para reabastecer.
 *   **Salvamento de Resultados:** A cada `N` gerações, o sistema salva uma captura de tela e um arquivo JSON com os dados da melhor solução daquela geração.
+*   **Análise com IA Generativa:** O projeto possui uma funcionalidade para, periodicamente, enviar os dados da melhor solução para uma API de IA (como o Gemini) e gerar um relatório técnico. Esses relatórios analisam a viabilidade da solução, a eficiência da rota e sugerem melhorias, atuando como um especialista em Pesquisa Operacional.
 *   **Rastreamento da Melhor Solução:** O sistema mantém e atualiza constantemente os arquivos `best_solution_ever.json` e `best_solution_ever.png` com a melhor solução encontrada em toda a execução.
 
 ## Como Funciona
@@ -80,6 +81,7 @@ Os resultados são salvos no diretório `results/`.
 
 *   `data_gen_XXXX.json`: Contém os detalhes da melhor solução na geração `XXXX`, incluindo custo, distância, penalidade, ordem de entrega e o caminho completo com as bases.
 *   `screenshot_gen_XXXX.png`: Uma imagem da visualização na geração `XXXX`.
+*   `data_gen_XXXX.txt`: Um relatório técnico gerado por IA que analisa a solução do arquivo `.json` correspondente, oferecendo uma perspectiva de Pesquisa Operacional sobre a viabilidade e eficiência da rota.
 *   `best_solution_ever.json` e `best_solution_ever.png`: O melhor resultado encontrado durante toda a execução, atualizado em tempo real.
 
 Esses arquivos são essenciais para analisar a convergência do algoritmo e a qualidade logística das rotas encontradas.
