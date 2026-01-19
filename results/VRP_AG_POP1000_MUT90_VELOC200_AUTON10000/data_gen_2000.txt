@@ -1,0 +1,39 @@
+Este relatório técnico analisa os resultados da execução de um Algoritmo Genético (AG) aplicado ao Problema do Caixeiro Viajante com Restrições (m-TSPTW + Autonomia). A análise foca na viabilidade logística e na eficiência algorítmica.
+
+---
+
+### Análise Técnica de Resultados: Otimização de Roteirização com AG
+
+#### 1. Eficiência de Convergência e Esforço Computacional
+O algoritmo foi executado por **2000 gerações**. Embora o dado específico de `found_at_generation` (em qual geração o melhor indivíduo surgiu) não tenha sido explicitado, o fato de o custo final ainda conter uma penalidade elevada sugere dois cenários:
+*   **Convergência Prematura:** O algoritmo pode ter estagnado em um ótimo local onde a exploração (*exploration*) não foi suficiente para encontrar rotas que respeitem as janelas de tempo.
+*   **Esforço Computacional vs. Complexidade:** Para um problema de ~46 pontos com restrições de autonomia e tempo, 2000 gerações é um limite padrão, mas a complexidade do espaço de busca (devido às penalidades) indica que o AG teve dificuldade em encontrar uma solução "limpa" (zero penalidade).
+
+#### 2. Decomposição do Custo: Viabilidade da Solução
+A análise da função de fitness revela um dado crítico:
+*   **Distância Real:** 69.986,57 units.
+*   **Penalidade:** 165.896,16 units.
+*   **Best Cost Total:** 235.882,73 units.
+
+**Interpretação:** A penalidade representa aproximadamente **70,3% do custo total**. Na Pesquisa Operacional, quando o custo de penalidade supera drasticamente o custo operacional (distância), a solução é considerada **logisticamente inviável** no mundo real.
+O valor elevado indica que o algoritmo violou severamente restrições de janelas de tempo (atrasos) ou prioridades de entrega. Embora o custo não seja "bilionário" numericamente (está na casa dos duzentos mil), a desproporção sugere que o AG priorizou encurtar a rota em detrimento do cumprimento dos prazos estabelecidos.
+
+#### 3. Logística e Roteirização: Estrutura do *Full Path*
+O `full_path_with_bases` revela a dinâmica de abastecimento e suporte:
+*   **Uso de Bases Multi-Ponto:** O caminho utiliza os nós 0, 10, 20, 30 e 47 como pontos de suporte/reabastecimento. A inserção estratégica de `47` e `30` em múltiplos pontos da rota mostra que o algoritmo está tentando gerenciar a autonomia do veículo.
+*   **Frequência de Reabastecimento:** Foram necessárias **8 paradas de reabastecimento** para cobrir a demanda. Isso indica uma autonomia relativamente baixa em relação à distância total, forçando o veículo a retornar ou passar por bases frequentemente, o que "quebra" a fluidez da rota clássica do TSP e aumenta a complexidade da sequência de entrega.
+
+#### 4. Conclusão Técnica e Recomendações
+
+A solução atual é **insatisfatória** para implementação operacional imediata devido ao alto índice de penalidades. O algoritmo conseguiu resolver o problema da autonomia (inserindo as bases), mas falhou em otimizar as restrições de tempo/prioridade.
+
+**Sugestões de Ajuste:**
+1.  **Ajuste da Função de Fitness:** O coeficiente de penalidade pode estar muito baixo, permitindo que o AG aceite atrasos para economizar combustível. É necessário aumentar o peso das penalidades de tempo (*Hard Constraints*).
+2.  **Hiperparâmetros:** 
+    *   Aumentar a **taxa de mutação** ou aplicar *Adaptive Mutation* para escapar do ótimo local que aceita penalidades.
+    *   Testar o operador de cruzamento **OX (Order Crossover)** ou **PMX**, se ainda não utilizados, para preservar melhor as sequências que respeitam o tempo.
+3.  **Refinamento Heurístico:** Implementar uma busca local (como 2-opt) após o cruzamento genético (abordagem de Algoritmo Memético) para tentar reduzir a distância sem violar as janelas de tempo já atendidas.
+
+---
+**Assinado:**
+*Especialista em Pesquisa Operacional & Ciência de Dados*

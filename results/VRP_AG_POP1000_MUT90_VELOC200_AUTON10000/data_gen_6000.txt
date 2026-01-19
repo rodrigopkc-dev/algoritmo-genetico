@@ -1,0 +1,33 @@
+Este relatório técnico apresenta uma análise de Pesquisa Operacional (PO) sobre os resultados do Algoritmo Genético (AG) aplicado ao Problema do Caixeiro Viajante com Restrições (r-TSP).
+
+---
+
+### **Relatório de Análise Técnica: Otimização de Roteirização com Algoritmo Genético**
+
+#### **1. Eficiência de Convergência e Esforço Computacional**
+O fato de o algoritmo ter atingido a **geração 6000** com um custo de ~191k indica um processo de busca extensivo. Em AGs, o esforço computacional é medido pela relação entre a complexidade do espaço de busca e a estabilização da função de fitness.
+*   **Análise:** 6000 gerações sugerem que o algoritmo teve tempo suficiente para explorar diversas combinações (crossover e mutação). No entanto, o "custo de busca" é alto se considerarmos que o algoritmo ainda mantém uma penalidade elevada. Se a convergência ocorreu muito cedo (estagnação), o algoritmo pode ter ficado preso em um **mínimo local**. Se ainda estava evoluindo, o limite de gerações pode ter sido prematuro para um problema com tantas restrições.
+
+#### **2. Decomposição do Custo: O Dilema da Viabilidade**
+A análise da composição do `best_cost` (191.202,64) revela um dado crítico para a Pesquisa Operacional:
+*   **Distância Real:** 66.334,38 (34,7% do custo total).
+*   **Penalidade (Penalty):** 124.868,26 (65,3% do custo total).
+
+**Interpretação:** A solução é, rigorosamente falando, **inviável (infeasible)** para o mundo real sob as restrições atuais. Quando a penalidade supera significativamente o custo de deslocamento (neste caso, é quase o dobro), o algoritmo está nos dizendo que, para completar a rota, ele precisou violar janelas de tempo ou limites de autonomia severamente. O custo não é "bilionário", mas a predominância da penalidade indica que o AG priorizou a "proximidade geográfica" em detrimento do cumprimento das regras de negócio (tempo e prioridade).
+
+#### **3. Logística e Roteirização: Dinâmica de Abastecimento**
+A estrutura do `full_path_with_bases` revela a estratégia logística adotada:
+*   **Uso de Bases e Pontos de Reabastecimento:** A inclusão dos nós 0, 10, 20, 30 e 47 ao longo da rota demonstra que a restrição de autonomia é o principal *driver* da fragmentação do caminho.
+*   **Análise do Fluxo:** Observa-se que o veículo visita um cluster de cidades e é forçado a desviar para uma base (ex: nó 30 entre 43 e 42, ou nó 47 múltiplas vezes).
+*   **Eficiência de Roteiro:** A presença frequente do nó 47 no final do percurso sugere que este ponto atua como um "coringa" de reabastecimento ou depósito final. Entretanto, o retorno sistemático a bases diferentes pode indicar que a localização das bases não está otimizada para a demanda das cidades ou que a autonomia do veículo é extremamente limitada para a dispersão geográfica dos pontos.
+
+#### **4. Conclusão Técnica e Recomendações**
+A solução atual **não é satisfatória** para implementação imediata, pois o peso das penalidades sugere que compromissos críticos (como horários de entrega ou segurança de combustível) não foram atendidos.
+
+**Sugestões de Ajuste:**
+1.  **Ajuste da Função de Fitness (Penalização):** Aumentar o coeficiente de penalidade. Se o AG "aceita" violar uma restrição porque a multa é "barata", ele nunca encontrará a rota viável. As penalidades devem ser ordens de magnitude maiores que a distância para forçar a busca no espaço viável.
+2.  **Operadores Genéticos:** Implementar uma **Mutação de Inversão (Inversion Mutation)** ou **Swap** focada especificamente nos nós que geram penalidade de tempo, visando reordenar prioridades.
+3.  **Abordagem Híbrida (Algoritmo Memético):** Introduzir uma heurística de busca local (como 2-opt ou 3-opt) após o crossover para refinar a distância entre as bases, tentando reduzir o `refuel_stops`.
+4.  **Análise de Autonomia:** Verificar se a restrição de autonomia não é fisicamente impossível para o cluster de cidades mais distantes; se for, o problema não tem solução viável sem adicionar mais bases ou veículos (VRP - Vehicle Routing Problem).
+
+**Veredito:** O algoritmo está funcionando mecanicamente, mas os hiperparâmetros de penalidade estão permitindo que ele "trapaceie" as regras para manter a distância curta. É necessário endurecer as restrições na função objetivo.

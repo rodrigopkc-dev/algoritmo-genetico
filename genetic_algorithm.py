@@ -3,6 +3,7 @@ import math
 import copy
 from typing import List, Tuple, Union
 
+# Dicionário de problemas de teste legados.
 default_problems = {
 5: [(733, 251), (706, 87), (546, 97), (562, 49), (576, 253)],
 10:[(470, 169), (602, 202), (754, 239), (476, 233), (468, 301), (522, 29), (597, 171), (487, 325), (746, 232), (558, 136)],
@@ -10,58 +11,53 @@ default_problems = {
 15:[(512, 317), (741, 72), (552, 50), (772, 346), (637, 12), (589, 131), (732, 165), (605, 15), (730, 38), (576, 216), (589, 381), (711, 387), (563, 228), (494, 22), (787, 288)]
 }
 
-# --- NOVAS FUNÇÕES PARA MATRIZ ---
-
 def create_distance_matrix(cities: List[Tuple[float, float]]) -> List[List[float]]:
-    """Gera a matriz de consulta para evitar cálculos repetidos."""
-    n = len(cities)
-    matrix = [[0.0 for _ in range(n)] for _ in range(n)]
-    for i in range(n):
-        for j in range(n):
+    """
+    Cria uma matriz de distâncias euclidianas entre uma lista de cidades.
+    A matriz é pré-calculada para otimizar as consultas de distância durante a execução.
+
+    Args:
+        cities: Uma lista de tuplas, onde cada tupla contém as coordenadas (x, y) de uma cidade.
+
+    Returns:
+        Uma matriz (lista de listas) onde matrix[i][j] é a distância entre a cidade i e a cidade j.
+    """
+    num_cities = len(cities)
+    matrix = [[0.0 for _ in range(num_cities)] for _ in range(num_cities)]
+    for i in range(num_cities):
+        for j in range(i, num_cities):
             if i != j:
-                d = math.sqrt((cities[i][0] - cities[j][0])**2 + (cities[i][1] - cities[j][1])**2)
-                matrix[i][j] = d
+                dist = math.sqrt((cities[i][0] - cities[j][0])**2 + (cities[i][1] - cities[j][1])**2)
+                matrix[i][j] = dist
+                matrix[j][i] = dist # A matriz é simétrica
     return matrix
 
-# Agora trabalhamos com índices (inteiros)
-def generate_random_population(num_cities: int, population_size: int) -> List[List[int]]:
-    """Gera rotas como listas de índices (ex: [0, 3, 1, 2])."""
-    indices = list(range(num_cities))
-    return [random.sample(indices, num_cities) for _ in range(population_size)]
-
-# Fitness agora recebe a matriz e os índices
-#def calculate_fitness(route: List[int], dist_matrix: List[List[float]]) -> float:
-#    """Calcula a distância total usando a matriz de consulta."""
-#    distance = 0
-#    n = len(route)
-#    for i in range(n):
-#        # Pega a distância entre a cidade atual e a próxima na rota
-#        cidade_atual = route[i]
-#        proxima_cidade = route[(i + 1) % n]
-#        distance += dist_matrix[cidade_atual][proxima_cidade]
-#    return distance
-
 # --- CONSTANTES LOGÍSTICAS ---
-#VELOCIDADE = 15.0      # Pixels por unidade de tempo
-#PESO_CRITICO = 2000.0  # Penalidade massiva para medicamentos críticos
-#PESO_REGULAR = 200.0   # Penalidade para insumos comuns
-
-#VELOCIDADE = 10.0        # Mais lento faz o tempo ser mais precioso
-VELOCIDADE = 100.0 # KM/h
+VELOCIDADE = 200.0  # Velocidade do veículo em KM/h
 PESO_CRITICO = 0.5   # Penalidade por hora de atraso ao quadrado para entregas críticas (em KM equivalentes) - AJUSTADO
 PESO_REGULAR = 0.1   # Penalidade por hora de atraso ao quadrado para entregas regulares (em KM equivalentes) - AJUSTADO
 VEHICLE_AUTONOMY = 10000.0  # Autonomia do veículo em KM - AJUSTADO
 
 def find_nearest_base(current_city: int, base_indices: List[int], dist_matrix: List[List[float]]) -> Tuple[int, float]:
-    """Finds the nearest base and the distance to it from a given city."""
+    """
+    Encontra a base de reabastecimento mais próxima de uma cidade e a distância até ela.
+
+    Args:
+        current_city: O índice da cidade atual.
+        base_indices: Uma lista com os índices de todas as bases.
+        dist_matrix: A matriz de distâncias pré-calculada.
+
+    Returns:
+        Uma tupla contendo o índice da base mais próxima e a distância até ela.
+    """
     if not base_indices:
-        # Fallback to depot 0 if no bases are defined.
+        # Caso nenhuma base seja definida, retorna para o depósito principal (índice 0).
         return 0, dist_matrix[current_city][0]
 
-    # Create a list of (base_index, distance) tuples
+    # Cria uma lista de tuplas (índice_da_base, distância)
     distances_to_bases = [(base_idx, dist_matrix[current_city][base_idx]) for base_idx in base_indices]
     
-    # Find the base with the minimum distance
+    # Encontra a base com a distância mínima
     nearest_base_idx, min_dist = min(distances_to_bases, key=lambda item: item[1])
     
     return nearest_base_idx, min_dist
@@ -69,85 +65,82 @@ def find_nearest_base(current_city: int, base_indices: List[int], dist_matrix: L
 
 def calculate_fitness(route: List[int], dist_matrix: List[List[float]], delivery_data: dict, base_indices: List[int], return_full_path: bool = False) -> Union[float, Tuple[float, dict]]:
     """
-    Calculates the total cost for a route, considering vehicle autonomy and refueling at the nearest base.
+    Calcula o custo (fitness) total de uma rota, considerando distância, penalidades por atraso e autonomia do veículo.
 
-    The cost is a sum of:
-    1. Total travel distance, including trips back to the depot for refueling.
-    2. Penalties for late deliveries.
+    A função simula uma viagem que:
+    - Começa na base principal.
+    - Segue a ordem de entregas da rota.
+    - Proativamente, desvia para a base mais próxima para reabastecer se a autonomia não for suficiente para o próximo trecho mais o retorno seguro a uma base.
+    - Acumula penalidades quadráticas por atrasos nas entregas.
+    - Retorna à base mais próxima no final da rota.
 
-    The vehicle starts at the main base (base_indices[0]), visits cities in order, and returns to the nearest base.
-    If the vehicle determines it cannot reach the next planned city AND then return to the
-    nearest base from there, it will first travel to its current nearest base to refuel.
-
-    Parameters:
-    - route (List[int]): A list of city indices representing the delivery order. Excludes the depot.
-    - dist_matrix (List[List[float]]): Pre-calculated distance matrix between all cities.
-    - delivery_data (dict): Dictionary with deadline and priority for each city.
-    - base_indices (List[int]): A list of city indices that are designated as refueling bases.
-    - return_full_path (bool): If True, returns the cost and a dictionary with detailed
-      information about the path (full path, distance, penalty, and refuel stops).
+    Args:
+        route: Uma lista de índices de cidades que representa a ordem das entregas.
+        dist_matrix: A matriz de distâncias pré-calculada.
+        delivery_data: Um dicionário com informações de prazo e criticidade para cada cidade.
+        base_indices: Uma lista com os índices das cidades que são bases.
+        return_full_path: Se True, retorna detalhes completos da rota para visualização.
 
     Returns:
-    - float: The total cost of the route.
-    - OR Tuple[float, dict]: The total cost and a dictionary of path details.
+        O custo total da rota, ou uma tupla (custo, detalhes) se return_full_path for True.
     """
     total_dist = 0
     tempo_atual = 0
     penalidade_total = 0
     refuel_stops = 0
     
-    # Vehicle starts at the main depot (first base in the list)
+    # O veículo começa na base principal (a primeira da lista) com tanque cheio.
     current_location = base_indices[0]
     remaining_autonomy = VEHICLE_AUTONOMY
     
-    full_path_indices = [current_location] # The journey always starts at a base
+    full_path_indices = [current_location]  # O caminho completo sempre começa em uma base.
 
-    # Iterate through each destination in the proposed route
+    # Itera sobre cada destino na rota proposta.
     for next_city in route:
         dist_to_next = dist_matrix[current_location][next_city]
         
-        # Find the distance from the potential next city to its nearest base
+        # Calcula a distância da *próxima* cidade até a base mais próxima dela.
         _, dist_from_next_to_nearest_base = find_nearest_base(next_city, base_indices, dist_matrix)
 
-        # --- Autonomy Check ---
-        # Does the vehicle have enough fuel to go to the next city AND make it to the nearest base from there?
-        # If not, it must refuel first.
+        # --- Verificação de Autonomia ---
+        # O veículo tem combustível para ir à próxima cidade E, de lá, chegar à base mais próxima?
+        # Se não, ele deve reabastecer primeiro.
         if (dist_to_next + dist_from_next_to_nearest_base) > remaining_autonomy:
-            # 1. Find the nearest base from the *current* location to refuel.
+            # 1. Encontra a base mais próxima da localização *atual* para reabastecer.
             refuel_base_idx, dist_to_refuel_base = find_nearest_base(current_location, base_indices, dist_matrix)
 
-            # 2. Travel from the current location back to that nearest base
+            # 2. Viaja da localização atual até a base de reabastecimento.
             total_dist += dist_to_refuel_base
             tempo_atual += (dist_to_refuel_base / VELOCIDADE)
             
-            # 3. Refuel: Autonomy is reset. The vehicle is now at the refuel base.
+            # 3. Reabastece: A autonomia é restaurada e a localização atual passa a ser a base.
             remaining_autonomy = VEHICLE_AUTONOMY
             current_location = refuel_base_idx
-            full_path_indices.append(current_location) # Log the refueling stop
+            full_path_indices.append(current_location)  # Registra a parada para reabastecer.
             refuel_stops += 1
             
-            # 4. Update the distance for the next leg, which is now from the new base.
+            # 4. Atualiza a distância para o próximo trecho, que agora parte da nova base.
             dist_to_next = dist_matrix[current_location][next_city]
 
-        # --- Travel to the next city ---
+        # --- Viagem para a Próxima Cidade ---
         total_dist += dist_to_next
         tempo_atual += (dist_to_next / VELOCIDADE)
         remaining_autonomy -= dist_to_next
         current_location = next_city
-        full_path_indices.append(current_location) # Log the city visit
+        full_path_indices.append(current_location)  # Registra a visita à cidade.
 
-        # --- Calculate Penalties at Destination ---
+        # --- Cálculo de Penalidades no Destino ---
         info = delivery_data[next_city]
         if tempo_atual > info['prazo']:
             atraso = tempo_atual - info['prazo']
             multiplicador = PESO_CRITICO if info['critico'] else PESO_REGULAR
             penalidade_total += (atraso ** 2) * multiplicador
 
-    # --- Final return to a base ---
-    # After visiting all cities, the vehicle must return to the nearest base.
+    # --- Retorno Final à Base ---
+    # Após visitar todas as cidades, o veículo deve retornar à base mais próxima.
     final_base_idx, dist_to_final_base = find_nearest_base(current_location, base_indices, dist_matrix)
     total_dist += dist_to_final_base
-    full_path_indices.append(final_base_idx) # Log the final return
+    full_path_indices.append(final_base_idx)  # Registra o retorno final.
         
     cost = total_dist + penalidade_total
     
@@ -162,32 +155,63 @@ def calculate_fitness(route: List[int], dist_matrix: List[List[float]], delivery
     else:
         return cost
 
-# O Crossover e Mutação agora manipulam inteiros (índices), não mais tuplas
 def order_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
-    length = len(parent1)
-    start_index = random.randint(0, length - 1)
-    end_index = random.randint(start_index + 1, length)
+    """
+    Executa o operador de crossover de ordem (OX1) para criar um filho a partir de dois pais.
+    Este método preserva um segmento de um pai e a ordem relativa dos genes do outro.
 
-    child = [None] * length
-    child[start_index:end_index] = parent1[start_index:end_index]
+    Args:
+        parent1: O primeiro cromossomo pai.
+        parent2: O segundo cromossomo pai.
 
-    remaining_genes = [gene for gene in parent2 if gene not in child]
-    
-    gen_idx = 0
-    for i in range(length):
+    Returns:
+        O cromossomo filho resultante.
+    """
+    size = len(parent1)
+    child = [None] * size
+
+    # 1. Seleciona um segmento aleatório do primeiro pai.
+    start, end = sorted(random.sample(range(size), 2))
+
+    # 2. Copia o segmento para o filho.
+    child[start:end] = parent1[start:end]
+
+    # 3. Coleta os genes do segundo pai que não estão no segmento copiado, mantendo a ordem.
+    # Usa-se um set para uma verificação de existência (in) mais rápida.
+    genes_in_segment = set(child[start:end])
+    genes_from_parent2 = [gene for gene in parent2 if gene not in genes_in_segment]
+
+    # 4. Preenche as posições restantes (None) do filho com os genes do segundo pai.
+    pointer = 0
+    for i in range(size):
         if child[i] is None:
-            child[i] = remaining_genes[gen_idx]
-            gen_idx += 1
+            child[i] = genes_from_parent2[pointer]
+            pointer += 1
+            
     return child
 
 def mutate(solution: List[int], mutation_probability: float) -> List[int]:
-    # Add a guard to ensure there are at least 2 cities to swap
+    """
+    Aplica uma mutação de troca (swap mutation) em um cromossomo.
+    Com uma dada probabilidade, dois genes aleatórios da solução trocam de posição.
+
+    Args:
+        solution: O cromossomo a ser mutado.
+        mutation_probability: A probabilidade de que a mutação ocorra.
+
+    Returns:
+        O cromossomo mutado (ou o original, se a mutação não ocorrer).
+    """
     if len(solution) > 1 and random.random() < mutation_probability:
         idx1, idx2 = random.sample(range(len(solution)), 2)
         solution[idx1], solution[idx2] = solution[idx2], solution[idx1]
     return solution
 
 def sort_population(population: List[List[int]], fitness: List[float]) -> Tuple[List[List[int]], List[float]]:
+    """
+    Ordena uma população de cromossomos com base em seus valores de fitness (custo).
+    A ordenação é feita em ordem crescente de fitness (menor custo é melhor).
+    """
     combined = sorted(zip(population, fitness), key=lambda x: x[1])
     if not combined:
         return [], []
