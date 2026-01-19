@@ -1,259 +1,336 @@
-import pygame
-from pygame.locals import *
+"""
+Script principal para execução do Algoritmo Genético para o Problema de Roteirização de Veículos (VRP).
+Este script inicializa o Pygame, configura os parâmetros do problema e do AG,
+e executa o loop principal de evolução e visualização.
+"""
+
+# --- Importações ---
+# Bibliotecas padrão
+import sys
 import random
 import itertools
-from draw_functions import draw_paths, draw_plot, draw_cities
-import sys
-import numpy as np
-import pygame
-from benchmark_att48 import *
+import os
+import json
+import threading
+from google import genai
 
+# Bibliotecas de terceiros
+import pygame
+from pygame.locals import *
+import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
+
+
+# Módulos locais
+from benchmark_att48 import att_48_cities_locations
+from draw_functions import draw_paths, draw_plot, draw_cities, draw_text
 from genetic_algorithm import (
     mutate, 
     order_crossover, 
-    generate_random_population, 
     calculate_fitness, 
     sort_population, 
-    default_problems,
-    create_distance_matrix # Nova função necessária
+    create_distance_matrix,
+    VEHICLE_AUTONOMY, # Import the vehicle autonomy constant
+    VELOCIDADE
 )
 
 
 # Define constant values
-# pygame
-WIDTH, HEIGHT = 800, 400
+# --- Constantes de Configuração ---
+
+# Configurações da Janela Pygame
+WIDTH, HEIGHT = 1500, 800
 NODE_RADIUS = 10
-FPS = 30
+FPS = 120
 PLOT_X_OFFSET = 450
 
-# GA
-#N_CITIES = 15
-#POPULATION_SIZE = 100
+# Parâmetros do Algoritmo Genético
 POPULATION_SIZE = 1000
-#POPULATION_SIZE = 2
-#POPULATION_SIZE = 50
+MUTATION_PROBABILITY = 0.9 # Probabilidade alta para maior exploração
 
-N_GENERATIONS = None
-#MUTATION_PROBABILITY = 0.1
-MUTATION_PROBABILITY = 0.2
-
-# Define colors
+# Cores para Visualização
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 GRAY = (200, 200, 200)
+GREEN = (0, 255, 0)
+
+# Configurações do Problema de Roteirização
+# Índices das cidades que funcionarão como bases/depósitos.
+BASE_INDICES = [0, 10, 20, 30, 47] 
 
 
-# Initialize problem
-# Using Random cities generation
-#cities_locations = [(random.randint(NODE_RADIUS + PLOT_X_OFFSET, WIDTH - NODE_RADIUS), random.randint(NODE_RADIUS, HEIGHT - NODE_RADIUS))
-#                     for _ in range(N_CITIES)]
+# Configura um id único para cada resultado baseado nos paramentos
+id_execucao = f"VRP_AG_POP{POPULATION_SIZE}_MUT{int(MUTATION_PROBABILITY*100)}_VELOC{int(VELOCIDADE)}_AUTON{int(VEHICLE_AUTONOMY)}"
 
-#print(f"Cities_locations: {cities_locations}")
+# Configurações de Salvamento de Resultados
+RESULTS_DIR = f"results\{id_execucao}"
+SAVE_INTERVAL = 2000 # Salva resultados a cada 2000 gerações
 
-# # # Using Deault Problems: 10, 12 or 15
-# WIDTH, HEIGHT = 800, 400
-#cities_locations = default_problems[15]
-#cities_locations = default_problems[15]
-
-
-# Using att48 benchmark
-WIDTH, HEIGHT = 1500, 800
-att_cities_locations = np.array(att_48_cities_locations)
-max_x = max(point[0] for point in att_cities_locations)
-max_y = max(point[1] for point in att_cities_locations)
-scale_x = (WIDTH - PLOT_X_OFFSET - NODE_RADIUS) / max_x
-scale_y = HEIGHT / max_y
-
-cities_locations = [(int(point[0] * scale_x + PLOT_X_OFFSET),
-                     int(point[1] * scale_y)) for point in att_cities_locations]
-
-#target_solution = [cities_locations[i-1] for i in att_48_cities_order]
-#fitness_target_solution = calculate_fitness(target_solution)
-#print(f"Best Solution: {fitness_target_solution}")
-# ----- Using att48 benchmark
-
-
-#cities_locations = default_problems[15]
-N_CITIES = len(cities_locations)
-
-# 1. PASSO CRUCIAL: Criar a Matriz de Distâncias uma única vez
-dist_matrix = create_distance_matrix(cities_locations)
-
-# 2. PASSO CRUCIAL: Gerar população baseada em ÍNDICES (0 a 14) e não coordenadas
-population = generate_random_population(N_CITIES, POPULATION_SIZE)
-
-
-
-# Initialize Pygame
-pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("TSP Solver using Pygame")
-clock = pygame.time.Clock()
-generation_counter = itertools.count(start=1)  # Start the counter at 1
-
-
-# Create Initial Population
-# TODO:- use some heuristic like Nearest Neighbour our Convex Hull to initialize
-#population = generate_random_population(cities_locations, POPULATION_SIZE)
-
-#print(f"population: {population}")
-
-#best_fitness_values = []
-#best_solutions = []
-
-# --- CONFIGURAÇÃO DE PRAZOS E MEDICAMENTOS ---
-#delivery_data = {}
-#for i in range(N_CITIES):
-#    # Definimos que as cidades com índice par recebem medicamentos críticos
-#    is_critico = (i % 3 == 0) 
-#    # Críticos: Prazo curto (100-500). Regulares: Prazo longo (1000-3000)
-#    prazo = random.randint(100, 500) if is_critico else random.randint(1000, 3000)
-#    
-#    delivery_data[i] = {
-#        'prazo': prazo, 
-#        'critico': is_critico,
-#        'demanda': random.randint(1, 5) # Futuro: Capacidade de Carga
-#    }
-
-# --- CONFIGURAÇÃO DE PRAZOS E MEDICAMENTOS (DINÂMICO 30%) ---
-#delivery_data = {}
-# Definimos a semente para que as prioridades não mudem a cada frame, 
-# mas sejam diferentes a cada execução se desejar (ou fixa para testes)
-# random.seed(42)
-#for i in range(N_CITIES):
-#    # Define aleatoriamente se é crítico (30% de chance)
-#    is_critico = random.random() < 0.30
-#    
-#    # Críticos: Prazo curto (100-500). Regulares: Prazo longo (1000-3000)
-#    prazo = random.randint(100, 500) if is_critico else random.randint(1000, 3000)
-#    
-#    delivery_data[i] = {
-#        'prazo': prazo, 
-#        'critico': is_critico,
-#        'demanda': random.randint(1, 5) # Futuro: Capacidade de Carga
-#    }
-
-delivery_data = {}
-
-#random.seed(42)
-#random.seed(41)
-random.seed(38)
-for i in range(N_CITIES):
-    if i == 0:
-        # Configuração específica para o Depósito (Quadrado Azul)
-        is_critico = False
-        prazo = 99999  # Prazo muito alto pois é o ponto de partida/retorno
-        demanda = 0    # Depósito não consome carga
-    else:
-        # Define aleatoriamente se é crítico (30% de chance) para as demais cidades
-        #random.seed(42)
-        is_critico = random.random() < 0.30
-        # Críticos: Prazo curto (100-500). Regulares: Prazo longo (1000-3000)
-        #prazo = random.randint(100, 500) if is_critico else random.randint(1000, 3000)
-        #alterado
-        prazo = 400.0 if is_critico else 2500.0
-        demanda = random.randint(1, 5)
-
-    delivery_data[i] = {
-        'prazo': prazo, 
-        'critico': is_critico,
-        'demanda': demanda
-    }
-
-best_fitness_values = []
-best_solutions_history = []
-
-# Main game loop
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_q:
-                running = False
-
-    generation = next(generation_counter)
-    screen.fill(WHITE)
-
-    # 3. CÁLCULO DE FITNESS: Usando a Matriz para alta performance
-    #population_fitness = [calculate_fitness(ind, dist_matrix) for ind in population]
-    # 3. CÁLCULO DE FITNESS: Agora passando os dados de entrega
-    population_fitness = [calculate_fitness(ind, dist_matrix, delivery_data) for ind in population]
-
-    # Ordenar população (Melhores primeiro)
-    population, population_fitness = sort_population(population, population_fitness)
-
-    best_indices = population[0]
-    best_fitness = population_fitness[0]
+# --- Função Principal ---
+def main():
+    """
+    Função principal que executa o simulador do Algoritmo Genético.
+    """
+    # --- 1. Inicialização do Problema ---
     
-    best_fitness_values.append(best_fitness)
+    # Carrega as coordenadas do benchmark att48 (1 unidade = 1 KM)
+    benchmark_coords = np.array(att_48_cities_locations)
+    N_CITIES = len(benchmark_coords)
 
-    # 4. CONVERSÃO PARA DESENHO: Transformar índices em coordenadas (x, y)
-    # Apenas os melhores para não pesar o render
-    best_path_coords = [cities_locations[i] for i in best_indices]
-    second_best_coords = [cities_locations[i] for i in population[1]]
+    # Cria a matriz de distâncias usando as coordenadas originais em KM.
+    dist_matrix = create_distance_matrix(benchmark_coords)
 
-    # --- DESENHO ---
-    # Aqui chamamos suas funções de desenho originais
-    #try:
-        #from draw_functions import draw_paths, draw_plot, draw_cities
-    draw_plot(screen, list(range(len(best_fitness_values))), 
-                  best_fitness_values, y_label="Fitness")
+    # Gera a população inicial. Cada cromossomo é uma permutação das cidades de entrega.
+    delivery_cities_indices = [i for i in range(N_CITIES) if i not in BASE_INDICES]
+    population = [random.sample(delivery_cities_indices, len(delivery_cities_indices)) for _ in range(POPULATION_SIZE)]
+
+    # --- 2. Geração de Dados de Entrega (Prazos, Criticidade) ---
+    # Define prazos e criticidade aleatórios para cada cidade.
+    delivery_data = {}
+    random.seed(42) # Garante que os dados sejam os mesmos a cada execução
+    for i in range(N_CITIES):
+        is_base = i in BASE_INDICES
+        delivery_data[i] = {
+            'prazo': 99999 if is_base else (8.0 if random.random() < 0.30 else 24.0),
+            'critico': False if is_base else (random.random() < 0.30),
+            'demanda': 0 if is_base else random.randint(1, 5),
+            'is_base': is_base,
+            'is_main_base': i == BASE_INDICES[0] if is_base else False
+        }
+
+    # --- 3. Inicialização do Pygame e Visualização ---
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Solucionador de VRP com Algoritmo Genético")
+    clock = pygame.time.Clock()
+    generation_counter = itertools.count(start=1)
+
+    # Calcula as coordenadas para desenho na tela (escalonado)
+    max_x = max(point[0] for point in benchmark_coords)
+    max_y = max(point[1] for point in benchmark_coords)
+    scale_x = (WIDTH - PLOT_X_OFFSET - 2 * NODE_RADIUS) / max_x
+    scale_y = (HEIGHT - 2 * NODE_RADIUS) / max_y
+
+    cities_draw_locations = [(int(point[0] * scale_x + PLOT_X_OFFSET + NODE_RADIUS),
+                            int(point[1] * scale_y + NODE_RADIUS)) for point in benchmark_coords]
+
+    # Cria o diretório de resultados se ele não existir
+    if not os.path.exists(RESULTS_DIR):
+        os.makedirs(RESULTS_DIR)
+
+    # --- 4. Loop Principal do Algoritmo Genético ---
+    best_fitness_history = []
+    all_time_best_fitness = float('inf')
+    running = True
+
+    GEMINI_API_KEY = os.getenv("API_KEY")
+
+    if not GEMINI_API_KEY:
+        raise RuntimeError("API Key do Gemini não encontrada!")
+
+    client = genai.Client()
+
+    def quebrar_texto(texto, fonte, largura_max):
+        palavras = texto.split(" ")
+        linhas = []
+        linha_atual = ""
+
+        for palavra in palavras:
+            teste = linha_atual + palavra + " "
+            if fonte.size(teste)[0] <= largura_max:
+                linha_atual = teste
+            else:
+                linhas.append(linha_atual)
+                linha_atual = palavra + " "
+
+        if linha_atual:
+            linhas.append(linha_atual)
+
+        return linhas
+
+    def perguntar(prompt: str) -> str:
+        response = client.models.generate_content(
+        model="gemini-3-flash-preview", contents=prompt
+    )
+        return response.text
+
+    def chamar_gemini(prompt, timestamp):
+        global texto_gemini, processando
+        texto_gemini = perguntar(prompt)
+        processando = False
+        data_path = os.path.join(RESULTS_DIR, f"data_{timestamp}.txt")
+        with open(data_path, 'w') as f:
+            f.write(texto_gemini)
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    running = False
+
+        generation = next(generation_counter)
+        screen.fill(WHITE)
+
+
+        # 3. CÁLCULO DE FITNESS: Calcula o fitness para toda a população.
+        # O caminho completo não é necessário aqui para economizar tempo.
+        population_fitness = [calculate_fitness(ind, dist_matrix, delivery_data, BASE_INDICES) for ind in population]
         
-    #draw_cities(screen, cities_locations, RED, NODE_RADIUS)
-    draw_cities(screen, cities_locations, delivery_data, NODE_RADIUS)
+        # Ordenar população (Melhores primeiro)
+        population, population_fitness = sort_population(population, population_fitness)
 
-    # Desenha a melhor rota em azul
-    draw_paths(screen, best_path_coords, BLUE, width=3)
-    # Desenha a segunda melhor em cinza (opcional)
-    draw_paths(screen, second_best_coords, GRAY, width=1)
-    #except ImportError:
-        # Fallback caso não tenha o arquivo draw_functions
-        #for city in cities_locations:
-            #pygame.draw.circle(screen, RED, city, NODE_RADIUS)
-        #if len(best_path_coords) > 1:
-            #pygame.draw.lines(screen, BLUE, True, best_path_coords, 3)
+        # --- Visualização e Análise dos Melhores Indivíduos ---
+        # Para os 3 melhores indivíduos, recalcula o fitness para obter os detalhes completos para visualização.
+        # Nota: Esta é uma simplificação. Em uma implementação de alta performance, os detalhes poderiam ser
+        # armazenados durante o primeiro cálculo de fitness para evitar recálculos.
+        
+        # Melhor indivíduo
+        best_chromosome = population[0]
+        best_fitness, best_details = calculate_fitness(best_chromosome, dist_matrix, delivery_data, BASE_INDICES, return_full_path=True)
+        best_full_path_indices = best_details["full_path"]
+        best_dist = best_details["distance"]
+        best_penalty = best_details["penalty"]
+        best_refuels = best_details["refuel_stops"]
+        best_path_coords = [cities_draw_locations[i] for i in best_full_path_indices]
 
-    print(f"Geracao {generation}: Melhor Distancia = {round(best_fitness, 2)}")
+        # Segundo melhor indivíduo
+        _, second_best_details = calculate_fitness(population[1], dist_matrix, delivery_data, BASE_INDICES, return_full_path=True)
+        second_best_path_indices = second_best_details["full_path"]
+        second_best_coords = [cities_draw_locations[i] for i in second_best_path_indices]
 
-    # --- EVOLUÇÃO (GERAR NOVA POPULAÇÃO) ---
-    new_population = [population[0]]  # ELITISMO: Mantém o melhor
+        # Terceiro melhor indivíduo
+        _, third_best_details = calculate_fitness(population[2], dist_matrix, delivery_data, BASE_INDICES, return_full_path=True)
+        third_best_path_indices = third_best_details["full_path"]
+        third_best_coords = [cities_draw_locations[i] for i in third_best_path_indices]
 
-    while len(new_population) < POPULATION_SIZE:
+        # --- DESENHO ---
+        best_fitness_history.append(best_fitness)
+        draw_cities(screen, cities_draw_locations, delivery_data, NODE_RADIUS)
+        draw_plot(screen, list(range(len(best_fitness_history))), best_fitness_history, y_label="Fitness (Custo)")
 
-        #print(f"len(new_population): {len(new_population)}")
+        # Desenha as rotas da pior para a melhor, para que a melhor fique por cima
+        draw_paths(screen, third_best_coords, GREEN, width=1)
+        draw_paths(screen, second_best_coords, GRAY, width=1)
+        draw_paths(screen, best_path_coords, BLUE, width=3)
 
-        # selection
-        # simple selection based on first 10 best solutions
-        # parent1, parent2 = random.choices(population[:10], k=2)
+        # --- DISPLAY INFO ON SCREEN ---
+        info_text_1 = f"Generation: {generation} | Best Cost (eq. KM): {round(best_fitness, 2)}"
+        info_text_2 = f"  Distance (KM): {round(best_dist, 2)} | Penalty (eq. KM): {round(best_penalty, 2)}"
+        info_text_3 = f"  Refuel Stops: {best_refuels} | Speed: {VELOCIDADE} KM/h"
+        info_text_4 = f"Vehicle Autonomy: {VEHICLE_AUTONOMY} KM"
+        draw_text(screen, info_text_1, (PLOT_X_OFFSET + 10, 10), BLACK)
+        draw_text(screen, info_text_2, (PLOT_X_OFFSET + 10, 30), BLACK)
+        draw_text(screen, info_text_3, (PLOT_X_OFFSET + 10, 50), BLACK)
+        draw_text(screen, info_text_4, (PLOT_X_OFFSET + 10, 70), BLACK)
 
-        # Seleção por probabilidade (Roleta baseada no inverso da distância)
-        # Quanto menor a distância, maior a probabilidade
-        fitness_array = np.array(population_fitness)
-        # Evitar divisão por zero e inverter (minimização)
-        probability = 1.0 / (fitness_array + 1e-6) 
-        probability /= probability.sum()
+        # --- SAVE BEST-EVER INDIVIDUAL ---
+        if best_fitness < all_time_best_fitness:
+            all_time_best_fitness = best_fitness
+            
+            best_solution_path = os.path.join(RESULTS_DIR, "best_solution_ever.json")
+            best_screenshot_path = os.path.join(RESULTS_DIR, "best_solution_ever.png")
+            
+            # Prepare the data for the best-ever solution
+            best_ever_data = {
+                "found_at_generation": generation,
+                "best_cost": best_fitness,
+                "detalhes": {
+                    "distance": best_dist,
+                    "penalty": best_penalty,
+                    "refuel_stops": best_refuels
+                },
+                "best_chromosome (delivery_order)": best_chromosome,
+                "full_path_with_bases": best_full_path_indices
+            }
 
-        parents = random.choices(population, weights=probability, k=2)
-        parent1, parent2 = parents[0], parents[1]
+            # Write the data to a JSON file, overwriting the previous best
+            with open(best_solution_path, 'w') as f:
+                json.dump(best_ever_data, f, indent=4)
+            
+            # Save a screenshot of the best-ever solution
+            pygame.image.save(screen, best_screenshot_path)
+            
+            print(f"*** Nova melhor solução encontrada na geração {generation}! Salva em '{best_solution_path}' ***")
+        if generation % 100 == 0: # Imprime no console a cada 100 gerações para não poluir
+            print(f"Generation {generation}: Best Cost (eq. KM) = {round(best_fitness, 2)} (Dist: {round(best_dist, 2)}, Penalty: {round(best_penalty, 2)}, Refuels: {best_refuels})")
 
-        # Crossover e Mutação trabalham com listas de inteiros agora
-        child = order_crossover(parent1, parent2)
-        child = mutate(child, MUTATION_PROBABILITY)
+        # --- SAVE RESULTS AT INTERVALS ---
+        if generation % SAVE_INTERVAL == 0 or generation == 1:
+            # Create a unique filename for this save instance
+            timestamp = f"gen_{generation}"
+            screenshot_path = os.path.join(RESULTS_DIR, f"screenshot_{timestamp}.png")
+            data_path = os.path.join(RESULTS_DIR, f"data_{timestamp}.json")
 
-        new_population.append(child)
+            # Save the current screen as a PNG image
+            pygame.image.save(screen, screenshot_path)
 
-    population = new_population
+            # Prepare the data to be saved in a JSON file
+            results_data = {
+                "generation": generation,
+                "best_cost": best_fitness,
+                "detalhes": {
+                    "distance": best_dist,
+                    "penalty": best_penalty,
+                    "refuel_stops": best_refuels
+                },
+                "best_chromosome (delivery_order)": best_chromosome,
+                "full_path_with_bases": best_full_path_indices
+            }
 
-    pygame.display.flip()
-    clock.tick(FPS)
+            if generation > 1:
+                # Write the data to a JSON file
+                with open(data_path, 'w') as f:
+                    json.dump(results_data, f, indent=4)
 
+                threading.Thread(target=chamar_gemini(rf'''Atue como um especialista em Pesquisa Operacional e Ciência de Dados. Analise os resultados de uma execução de Algoritmo Genético aplicado ao Problema do Caixeiro Viajante (TSP) 
+                                                      com restrições (de tempo de entrega, autonomia dos veículos e prioridades de algumas cidades).
+                                                                    Dados da Execução:
+                                                                    {results_data}
+                                                                    Objetivo: Fornecer um relatório técnico resumido para um trabalho de pós-graduação, abordando:
+                                                                    Eficiência de Convergência: O que o 'found_at_generation' indica sobre o esforço computacional?
+                                                                    Decomposição do Custo: Analise a relação entre distância real e penalidades. O que o 'best_cost' bilionário sugere sobre a viabilidade da solução?
+                                                                    Logística e Roteirização: Interprete a estrutura do 'full_path_with_bases' (uso de bases 0, 10, 20 e paradas de reabastecimento).
+                                                                    Conclusão Técnica: A solução é satisfatória ou o algoritmo precisa de ajuste de hiperparâmetros ou da função de fitness?''', timestamp=timestamp), daemon=True).start()
+            
 
-# TODO: save the best individual in a file if it is better than the one saved.
+            print(f"--- Resultados da geração {generation} salvos no diretório '{RESULTS_DIR}' ---")
 
-# exit software
-pygame.quit()
-sys.exit()
+        # --- EVOLUÇÃO (GERAR NOVA POPULAÇÃO) ---
+        new_population = [population[0]]  # ELITISMO: Mantém o melhor
+
+        while len(new_population) < POPULATION_SIZE:
+            # --- Seleção (Roleta) ---
+            # A probabilidade de um indivíduo ser escolhido é inversamente proporcional ao seu custo (fitness).
+            # Quanto menor o custo, maior a chance de ser selecionado.
+            fitness_array = np.array(population_fitness)
+            # Adiciona-se um valor pequeno (1e-6) para evitar divisão por zero.
+            probabilities = 1.0 / (fitness_array + 1e-6) 
+            probabilities /= probabilities.sum() # Normaliza as probabilidades para que somem 1.
+
+            parent1, parent2 = random.choices(population, weights=probabilities, k=2)
+
+            # --- Crossover ---
+            child = order_crossover(parent1, parent2)
+            
+            # --- Mutação ---
+            child = mutate(child, MUTATION_PROBABILITY)
+
+            new_population.append(child)
+
+        population = new_population
+
+        # Atualiza a tela
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    # --- Finalização ---
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    main()

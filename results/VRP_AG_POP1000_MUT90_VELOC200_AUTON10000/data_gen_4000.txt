@@ -1,0 +1,35 @@
+Este relatório técnico analisa os resultados da aplicação de um Algoritmo Genético (AG) para a resolução do Problema do Caixeiro Viajante com Restrições (cTSP). O foco da análise recai sobre a viabilidade logística e a eficiência do modelo de otimização proposto.
+
+---
+
+### 1. Eficiência de Convergência
+O fato de o algoritmo ter atingido a **geração 4000** com um custo final elevado e uma estrutura de penalidades robusta indica um alto esforço computacional, mas com ressalvas sobre a convergência.
+
+*   **Esforço Computacional:** O número de gerações sugere que o AG explorou uma vasta porção do espaço de busca. No entanto, se o `found_at_generation` (momento em que o melhor indivíduo foi encontrado) estiver muito próximo de 4000, isso indica que o algoritmo ainda estava em processo de melhoria e não havia estabilizado (estagnação), sugerindo que o limite de gerações poderia ser maior.
+*   **Paisagem de Fitness:** A presença de restrições de tempo e autonomia cria uma "paisagem de fitness" muito acidentada, com muitas zonas de inviabilidade. O AG despendeu grande parte do esforço tentando encontrar uma rota que fosse, antes de tudo, válida, em vez de apenas curta.
+
+### 2. Decomposição do Custo: Realidade vs. Penalidade
+A análise do `best_cost` (226.941,78) revela uma métrica crítica para Pesquisa Operacional:
+
+*   **Relação Distância/Penalidade:** A distância real percorrida é de **71.475,76**, enquanto a penalidade é de **155.466,02**. Isso significa que **68,5% do custo total é composto por violações de restrições**.
+*   **Viabilidade da Solução:** Embora o custo total não seja "bilionário" no sentido literal (está na casa das centenas de milhares), ele é "caro" do ponto de vista normativo. Uma penalidade que dobra o valor da distância indica que a solução encontrada **viola significativamente as janelas de tempo ou as prioridades das cidades**.
+*   **Conclusão sobre o Custo:** Do ponto de vista prático, a solução atual é **inviável**. O algoritmo priorizou uma rota mais curta em detrimento do cumprimento dos horários de entrega ou da ordem de prioridade.
+
+### 3. Logística e Roteirização (Análise do *Full Path*)
+A estrutura do `full_path_with_bases` revela como o algoritmo lidou com a restrição de autonomia (refuel):
+
+*   **Uso de Bases e Pontos de Reabastecimento:** Observa-se a inserção estratégica de nós como `30, 20, 47, 10` e o retorno ao `0`. Estes pontos atuam como *depots* ou estações de recarga. 
+*   **Fragmentação da Rota:** Com **8 paradas de reabastecimento**, a rota está fragmentada em pequenos subcircuitos. Por exemplo: `[0 -> ... -> 30]`, `[30 -> ... -> 20]`, `[20 -> ... -> 47]`. 
+*   **Ineficiência Logística:** Nota-se que o nó `47` (uma base/posto) aparece quatro vezes, e o nó `30` duas vezes. Isso sugere que o veículo está "orbitando" postos de combustível para evitar a pane seca, o que aumenta a distância total e, provavelmente, causa o atraso nas entregas (gerando a penalidade alta).
+
+### 4. Conclusão Técnica e Recomendações
+A solução atual **não é satisfatória** para uma implementação real, servindo apenas como um *baseline* inicial. O algoritmo conseguiu resolver o problema da autonomia (evitou que o veículo ficasse sem combustível), mas falhou em equilibrar as janelas de tempo e prioridades.
+
+**Ajustes Necessários:**
+
+1.  **Ajuste da Função de Fitness (Penalidades):** O coeficiente de penalidade para janelas de tempo deve ser aumentado (tornar a restrição mais "hard"). Se o objetivo é a pontualidade, violar um minuto de entrega deve custar muito mais caro do que percorrer um quilômetro adicional.
+2.  **Hiperparâmetros:** 
+    *   **Mutação:** Aumentar a taxa de mutação ou implementar uma mutação adaptativa para evitar que o algoritmo fique preso em ótimos locais que ignoram as restrições de tempo.
+    *   **Elitismo:** Garantir que os indivíduos que respeitam as janelas de tempo sejam preservados, mesmo que tenham distâncias maiores.
+3.  **Abordagem Híbrida (Algoritmo Memético):** Recomenda-se a introdução de uma busca local (como o operador *2-opt* ou *3-opt*) após o cruzamento genético, especificamente focada em reordenar as cidades entre duas paradas de reabastecimento para otimizar o tempo de chegada.
+4.  **Clustering:** Avaliar se as cidades foram atribuídas às bases mais próximas. O trajeto indica um vai-e-vem que poderia ser mitigado com uma etapa de agrupamento prévia à execução do AG.
