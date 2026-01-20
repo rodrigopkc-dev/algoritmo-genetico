@@ -64,7 +64,7 @@ id_execucao = f"VRP_AG_POP{POPULATION_SIZE}_MUT{int(MUTATION_PROBABILITY*100)}_V
 
 # Configurações de Salvamento de Resultados
 RESULTS_DIR = rf"results\{id_execucao}"
-SAVE_INTERVAL = 2000 # Salva resultados a cada 2000 gerações
+SAVE_INTERVAL = 4000 # Salva resultados a cada 2000 gerações
 
 # --- Função Principal ---
 def main():
@@ -149,7 +149,7 @@ def main():
         return linhas
 
     def perguntar(prompt: str) -> str:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-3-flash-preview")
         response = model.generate_content(prompt)
         return response.text
 
