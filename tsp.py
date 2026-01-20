@@ -12,7 +12,7 @@ import itertools
 import os
 import json
 import threading
-from google import genai
+import google.generativeai as genai
 
 # Bibliotecas de terceiros
 import pygame
@@ -24,14 +24,17 @@ load_dotenv()
 
 # Módulos locais
 from benchmark_att48 import att_48_cities_locations
-from draw_functions import draw_paths, draw_plot, draw_cities, draw_text
+from draw_functions import (
+    draw_paths, draw_plot, draw_cities, draw_text,
+    draw_stats_panel, draw_legend, draw_header, Colors, draw_panel
+)
 from genetic_algorithm import (
     mutate, 
     order_crossover, 
     calculate_fitness, 
     sort_population, 
     create_distance_matrix,
-    VEHICLE_AUTONOMY, # Import the vehicle autonomy constant
+    VEHICLE_AUTONOMY,
     VELOCIDADE
 )
 
@@ -40,8 +43,8 @@ from genetic_algorithm import (
 # --- Constantes de Configuração ---
 
 # Configurações da Janela Pygame
-WIDTH, HEIGHT = 1500, 800
-NODE_RADIUS = 10
+WIDTH, HEIGHT = 1600, 900
+NODE_RADIUS = 12
 FPS = 120
 PLOT_X_OFFSET = 450
 
@@ -49,13 +52,7 @@ PLOT_X_OFFSET = 450
 POPULATION_SIZE = 1000
 MUTATION_PROBABILITY = 0.9 # Probabilidade alta para maior exploração
 
-# Cores para Visualização
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-GRAY = (200, 200, 200)
-GREEN = (0, 255, 0)
+# Cores para Visualização - Tema Futurista (importado de draw_functions)
 
 # Configurações do Problema de Roteirização
 # Índices das cidades que funcionarão como bases/depósitos.
@@ -66,7 +63,7 @@ BASE_INDICES = [0, 10, 20, 30, 47]
 id_execucao = f"VRP_AG_POP{POPULATION_SIZE}_MUT{int(MUTATION_PROBABILITY*100)}_VELOC{int(VELOCIDADE)}_AUTON{int(VEHICLE_AUTONOMY)}"
 
 # Configurações de Salvamento de Resultados
-RESULTS_DIR = f"results\{id_execucao}"
+RESULTS_DIR = rf"results\{id_execucao}"
 SAVE_INTERVAL = 2000 # Salva resultados a cada 2000 gerações
 
 # --- Função Principal ---
@@ -104,7 +101,7 @@ def main():
     # --- 3. Inicialização do Pygame e Visualização ---
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Solucionador de VRP com Algoritmo Genético")
+    pygame.display.set_caption("🚀 VRP Solver - Algoritmo Genético | Otimização de Rotas")
     clock = pygame.time.Clock()
     generation_counter = itertools.count(start=1)
 
@@ -131,7 +128,7 @@ def main():
     if not GEMINI_API_KEY:
         raise RuntimeError("API Key do Gemini não encontrada!")
 
-    client = genai.Client()
+    genai.configure(api_key=GEMINI_API_KEY)
 
     def quebrar_texto(texto, fonte, largura_max):
         palavras = texto.split(" ")
@@ -152,9 +149,8 @@ def main():
         return linhas
 
     def perguntar(prompt: str) -> str:
-        response = client.models.generate_content(
-        model="gemini-3-flash-preview", contents=prompt
-    )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
         return response.text
 
     def chamar_gemini(prompt, timestamp):
@@ -174,7 +170,17 @@ def main():
                     running = False
 
         generation = next(generation_counter)
-        screen.fill(WHITE)
+        
+        # Fundo escuro moderno com gradiente sutil
+        screen.fill(Colors.BACKGROUND)
+        
+        # Desenha grid de fundo sutil na área do mapa
+        grid_surface = pygame.Surface((WIDTH - PLOT_X_OFFSET, HEIGHT), pygame.SRCALPHA)
+        for x in range(0, WIDTH - PLOT_X_OFFSET, 50):
+            pygame.draw.line(grid_surface, (30, 30, 60, 50), (x, 0), (x, HEIGHT))
+        for y in range(0, HEIGHT, 50):
+            pygame.draw.line(grid_surface, (30, 30, 60, 50), (0, y), (WIDTH - PLOT_X_OFFSET, y))
+        screen.blit(grid_surface, (PLOT_X_OFFSET, 0))
 
 
         # 3. CÁLCULO DE FITNESS: Calcula o fitness para toda a população.
@@ -210,23 +216,42 @@ def main():
 
         # --- DESENHO ---
         best_fitness_history.append(best_fitness)
-        draw_cities(screen, cities_draw_locations, delivery_data, NODE_RADIUS)
-        draw_plot(screen, list(range(len(best_fitness_history))), best_fitness_history, y_label="Fitness (Custo)")
-
+        
+        # Cabeçalho elegante
+        draw_header(screen, "VRP - ALGORITMO GENÉTICO", "Sistema de Otimização de Rotas de Veículos")
+        
         # Desenha as rotas da pior para a melhor, para que a melhor fique por cima
-        draw_paths(screen, third_best_coords, GREEN, width=1)
-        draw_paths(screen, second_best_coords, GRAY, width=1)
-        draw_paths(screen, best_path_coords, BLUE, width=3)
-
-        # --- DISPLAY INFO ON SCREEN ---
-        info_text_1 = f"Generation: {generation} | Best Cost (eq. KM): {round(best_fitness, 2)}"
-        info_text_2 = f"  Distance (KM): {round(best_dist, 2)} | Penalty (eq. KM): {round(best_penalty, 2)}"
-        info_text_3 = f"  Refuel Stops: {best_refuels} | Speed: {VELOCIDADE} KM/h"
-        info_text_4 = f"Vehicle Autonomy: {VEHICLE_AUTONOMY} KM"
-        draw_text(screen, info_text_1, (PLOT_X_OFFSET + 10, 10), BLACK)
-        draw_text(screen, info_text_2, (PLOT_X_OFFSET + 10, 30), BLACK)
-        draw_text(screen, info_text_3, (PLOT_X_OFFSET + 10, 50), BLACK)
-        draw_text(screen, info_text_4, (PLOT_X_OFFSET + 10, 70), BLACK)
+        draw_paths(screen, third_best_coords, Colors.ROUTE_THIRD, width=2, dash=True)
+        draw_paths(screen, second_best_coords, Colors.ROUTE_SECOND, width=2)
+        draw_paths(screen, best_path_coords, Colors.ROUTE_BEST, width=4, glow=True)
+        
+        # Desenha cidades com efeitos visuais
+        draw_cities(screen, cities_draw_locations, delivery_data, NODE_RADIUS, generation)
+        
+        # Painel de gráfico
+        draw_plot(screen, list(range(len(best_fitness_history))), best_fitness_history, 
+                  y_label="Fitness (Custo)", plot_position=(15, 80))
+        
+        # Painel de estatísticas
+        stats = {
+            'generation': generation,
+            'best_cost': best_fitness,
+            'distance': best_dist,
+            'penalty': best_penalty,
+            'refuel_stops': best_refuels,
+            'speed': VELOCIDADE,
+            'autonomy': VEHICLE_AUTONOMY
+        }
+        draw_stats_panel(screen, stats, position=(5, 410))
+        
+        # Legenda
+        draw_legend(screen, position=(5, 600))
+        
+        # Informações de rotas no mapa
+        draw_text(screen, f"🏆 Melhor Rota: {round(best_dist, 1)} KM", 
+                  (PLOT_X_OFFSET + 10, HEIGHT - 60), Colors.NEON_CYAN, 14, bold=True)
+        draw_text(screen, f"📍 Cidades: {len(best_chromosome)} | 🔋 Recargas: {best_refuels}", 
+                  (PLOT_X_OFFSET + 10, HEIGHT - 35), Colors.TEXT_SECONDARY, 13)
 
         # --- SAVE BEST-EVER INDIVIDUAL ---
         if best_fitness < all_time_best_fitness:
